@@ -98,9 +98,10 @@ const markers = computed<TripMapMarker[]>(() => {
         lng: i.lng as number,
         title: i.title,
         subtitle: [time, i.place_name].filter(Boolean).join(' · '),
-        // Universal https link: geo: URIs have no registered handler in
-        // most desktop browsers ("Failed to launch 'geo:…'"), so every
-        // "Open in maps" surface uses the web URL (v2-4).
+        // v2.4 fix (restored in v2.6.1): the popup's "Open in maps" link
+        // uses the universal web URL (maps.google.com/?q=…), not the geo:
+        // URI that throws "scheme does not have a registered handler" in
+        // browsers without an OS map handler.
         linkHtml: `<a href="${links.webUrl}" target="_blank" rel="noopener">Open in maps</a>`,
       }
     })

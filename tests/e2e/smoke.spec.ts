@@ -4,7 +4,7 @@
  * These prove the app boots, protected routes behave (FR-AUTH-07 pattern)
  * and the auth screens expose the M1 features (password reset entry point).
  */
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 /**
  * The header nav renders client-side only (ClientOnly in app.vue): when it
@@ -15,11 +15,103 @@ async function waitForHydration(page: Page) {
   await expect(page.locator('header nav')).toBeVisible()
 }
 
+// ── v2.7 hero CTA — the buttons follow the session ──────────────────────
+// Session stub mirrors tour.spec.ts: an unsigned-format JWT (the client
+// never verifies signatures locally) + the mocked token endpoint; every
+// other /rest/v1 call answers empty so the trips page shows its empty
+// state. Signed-in state is reached through the mocked sign-in UI, exactly
+// the way a real user gets there.
+
+const FAKE_USER_ID = '00000000-0000-4000-8000-0000000000e1'
+
+function base64url(json: unknown): string {
+  return Buffer.from(JSON.stringify(json)).toString('base64url')
+}
+
+const fakeSession = {
+  access_token: [
+    base64url({ alg: 'HS256', typ: 'JWT' }),
+    base64url({ sub: FAKE_USER_ID, role: 'authenticated', exp: 4102444800 }),
+    'mock-signature',
+  ].join('.'),
+  token_type: 'bearer',
+  expires_in: 3600,
+  expires_at: 4102444800,
+  refresh_token: 'mock-refresh-token',
+  user: {
+    id: FAKE_USER_ID,
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: 'mock@pasyal.test',
+    email_confirmed_at: '2026-01-01T00:00:00Z',
+    app_metadata: { provider: 'email', providers: ['email'] },
+    user_metadata: { display_name: 'Mock Traveler' },
+    created_at: '2026-01-01T00:00:00Z',
+  },
+}
+
+async function mockSupabase(route: Route) {
+  const url = route.request().url()
+
+  if (url.includes('/auth/v1/token')) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fakeSession) })
+    return
+  }
+
+  // Fresh account: no trips yet.
+  if (url.includes('/rpc/my_trips_summary')) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    return
+  }
+
+  if (url.includes('/rest/v1/')) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    return
+  }
+
+  await route.continue()
+}
+
+/** The hero card (the h1's parent) — scopes link lookups away from the header nav. */
+function hero(page: Page) {
+  return page.getByRole('heading', { name: 'Group travel, sorted.' }).locator('..')
+}
+
 test('homepage renders the hero', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Group travel, sorted.' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Create your account' })).toBeVisible()
   await expect(page.getByText('Installable as an app (PWA) on Android and iPhone.')).toBeVisible()
+})
+
+test('the hero CTAs follow the session (v2.7)', async ({ page }) => {
+  // Signed out: both account CTAs, no "My Trips" button.
+  await page.goto('/')
+  await waitForHydration(page)
+  await expect(hero(page).getByRole('link', { name: 'Create your account' })).toBeVisible()
+  await expect(hero(page).getByRole('link', { name: 'Sign in' })).toBeVisible()
+  await expect(hero(page).getByRole('link', { name: 'My Trips' })).toHaveCount(0)
+
+  // Sign in through the mocked auth UI, then return to the landing page.
+  await page.route('**/*', mockSupabase)
+  await page.goto('/auth/signin')
+  await waitForHydration(page)
+  await page.getByLabel('Email').fill('mock@pasyal.test')
+  await page.getByLabel('Password').fill('mock-password-1')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page).toHaveURL(/\/trips$/)
+
+  // Signed in: ONE "My Trips" button, and the account CTAs are gone.
+  await page.goto('/')
+  await waitForHydration(page)
+  await expect(hero(page).getByRole('link', { name: 'My Trips' })).toBeVisible()
+  await expect(hero(page).getByRole('link', { name: 'Create your account' })).toHaveCount(0)
+  await expect(hero(page).getByRole('link', { name: 'Sign in' })).toHaveCount(0)
+
+  // Clicking it goes to the Trips page.
+  await hero(page).getByRole('link', { name: 'My Trips' }).click()
+  await expect(page).toHaveURL(/\/trips$/)
+  await expect(page.getByText('No trips yet')).toBeVisible()
 })
 
 test('the trip list is protected — signed-out visitors are routed through sign-in', async ({

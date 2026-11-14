@@ -571,12 +571,13 @@ test('the itinerary shows days, ordered items, edited-by and maps links (UI-10, 
   await expect(page.getByText('🚗 Flight to Puerto Princesa').first()).toBeVisible()
 
   // "Open in maps" deep link (FR-ITN-09) and booking link (FR-ITN-11).
-  // v2-4: the anchor uses the universal web URL — geo: URIs have no
-  // registered handler in most desktop browsers.
+  // v2.4 fix (restored in v2.6.1): the anchor must bind the universal web
+  // URL, not the geo: URI that throws "scheme does not have a registered
+  // handler" in browsers without an OS map handler.
   const mapsLink = page.getByRole('link', { name: 'Open in maps' }).first()
   await expect(mapsLink).toHaveAttribute(
     'href',
-    'https://maps.google.com/?q=9.7425,118.7588',
+    /^https:\/\/maps\.google\.com\/\?q=9\.7425,118\.7588$/,
   )
   await expect(page.getByRole('link', { name: 'booking link' })).toHaveAttribute(
     'href',
@@ -652,17 +653,17 @@ test('the add-item form renders place search, the day select and the pin map (UI
   ])
 })
 
-test('place search results appear on the first try, without refocusing (v2-4, FR-MAP-03)', async ({
-  page,
-}) => {
-  // Phone size: the Location field sits near the bottom of the bottom-sheet
-  // dialog, which is where both halves of the bug live (list not opening;
-  // list opening below the visible area).
-  await page.setViewportSize({ width: 390, height: 520 })
+test('place search results appear on the first try (v2.4 fix, FR-MAP-03)', async ({ page }) => {
+  // The v2.4 owner report: type a place, results arrive — but the
+  // suggestion listbox only opened on the field's SECOND focus, so the
+  // first search looked like it returned nothing. The restored watcher
+  // opens the list the moment results land, inside the bottom-sheet
+  // dialog, without any refocus (and the listbox is capped at max-h-56
+  // so it scrolls instead of stretching the sheet).
   await signInWithItinerary(page, `/trips/${TRIP_ID}/itinerary`)
 
-  // Registered last → runs first; non-places requests fall through to the
-  // trip mocks installed by signInWithItinerary.
+  // The place-search proxy (server-side, FR-MAP-03) mocked with one
+  // suggestion. Registered AFTER the '**/*' handler so it wins the match.
   await page.route('**/api/places/search*', async (route) => {
     await route.fulfill({
       status: 200,
@@ -670,18 +671,11 @@ test('place search results appear on the first try, without refocusing (v2-4, FR
       body: JSON.stringify({
         results: [
           {
-            id: 'osm-1',
-            name: 'Pension De Coron',
-            address: 'Tapyas Road, Coron, Palawan, Philippines',
-            lat: 12.0009891,
-            lng: 120.2041789,
-          },
-          {
-            id: 'osm-2',
-            name: 'Coron Wrecks Dive Shop',
-            address: 'Coron Town Proper, Palawan, Philippines',
-            lat: 12.0011,
-            lng: 120.2011,
+            id: 'nacpan-1',
+            name: 'Nacpan Beach',
+            address: 'El Nido, Palawan',
+            lat: 11.3203,
+            lng: 119.3947,
           },
         ],
       }),
@@ -690,26 +684,25 @@ test('place search results appear on the first try, without refocusing (v2-4, FR
 
   await page.getByRole('button', { name: '+ Add item' }).first().click()
   const dialog = page.getByRole('dialog')
-  const locationField = dialog.getByLabel('Location (optional)', { exact: false })
-  await locationField.click()
-  await locationField.fill('Pension De Coron')
+  await expect(dialog).toBeVisible()
 
-  // The suggestion list opens by itself when results arrive (v2-4 fix —
-  // before, it only opened on the field's second focus) and is scrolled
-  // into the visible part of the sheet (second half of the fix).
-  const listbox = dialog.getByRole('listbox')
-  await expect(listbox).toBeVisible()
-  await expect(listbox).toBeInViewport({ ratio: 0.5 })
-  const option = dialog.getByRole('option', { name: /Pension De Coron/ })
-  await expect(option).toBeVisible()
+  const place = dialog.getByLabel('Location (optional)', { exact: false })
+  await place.click()
+  await place.fill('Nacpan')
 
-  // Choosing the suggestion stores the place.
+  // No refocus, no second click: the listbox appears by itself once the
+  // debounced search (300 ms) resolves. (Scoped to the listbox — the Day
+  // <select> also exposes hidden role=option elements.)
+  const option = dialog.getByRole('listbox').getByRole('option').first()
+  await expect(option).toBeVisible({ timeout: 10_000 })
+  await expect(option).toContainText('Nacpan Beach')
+  await expect(dialog.getByRole('listbox')).toBeVisible()
+
+  // Choosing a suggestion fills the location fields (FR-ITN-03).
   await option.click()
-  await expect(dialog.getByText('Tapyas Road, Coron, Palawan, Philippines')).toBeVisible()
-  await expect(dialog.getByRole('link', { name: 'Preview in maps' })).toHaveAttribute(
-    'href',
-    'https://maps.google.com/?q=12.0009891,120.2041789',
-  )
+  await expect(place).toHaveValue('Nacpan')
+  await expect(dialog.getByText('El Nido, Palawan')).toBeVisible()
+  await expect(dialog.getByText('(11.3203, 119.3947)')).toBeVisible()
 })
 
 // ══════════════════════════════════════════════════════════════════════

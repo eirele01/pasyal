@@ -20,24 +20,36 @@ const user = useSupabaseUser()
           only while the app is open.
         </p>
 
+        <!-- v2.7 (owner request): the hero CTA follows the session — one
+             "My Trips" button when signed in, the two account CTAs when
+             not. The Supabase session lives in the browser, so the branch
+             renders client-side only (the same ClientOnly pattern as the
+             header in app.vue — no hydration mismatch); the fallback keeps
+             the account CTAs in the prerendered HTML (SEO / no-JS). This
+             replaces the old "You are signed in — open your trips" hint. -->
         <div class="mt-8 flex flex-wrap items-center gap-3">
-          <Button size="lg" as-child>
-            <NuxtLink to="/auth/signup">Create your account</NuxtLink>
-          </Button>
-          <Button size="lg" variant="outline" as-child>
-            <NuxtLink to="/auth/signin">Sign in</NuxtLink>
-          </Button>
+          <ClientOnly>
+            <Button v-if="user" size="lg" as-child>
+              <NuxtLink to="/trips">My Trips</NuxtLink>
+            </Button>
+            <template v-else>
+              <Button size="lg" as-child>
+                <NuxtLink to="/auth/signup">Create your account</NuxtLink>
+              </Button>
+              <Button size="lg" variant="outline" as-child>
+                <NuxtLink to="/auth/signin">Sign in</NuxtLink>
+              </Button>
+            </template>
+            <template #fallback>
+              <Button size="lg" as-child>
+                <NuxtLink to="/auth/signup">Create your account</NuxtLink>
+              </Button>
+              <Button size="lg" variant="outline" as-child>
+                <NuxtLink to="/auth/signin">Sign in</NuxtLink>
+              </Button>
+            </template>
+          </ClientOnly>
         </div>
-
-        <ClientOnly>
-          <p v-if="user" class="text-muted-foreground mt-4 text-sm">
-            You are signed in —
-            <NuxtLink to="/trips" class="text-primary underline-offset-4 hover:underline">
-              open your trips
-            </NuxtLink>
-            .
-          </p>
-        </ClientOnly>
       </div>
     </section>
 

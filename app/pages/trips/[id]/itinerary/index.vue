@@ -153,12 +153,13 @@ async function onMove(dayId: string, item: ItemWithEditor, direction: -1 | 1) {
   }
 }
 
-/**
- * Maps deep link for an item with coordinates (FR-ITN-09). The web URL
- * is used for the anchor itself: geo: URIs throw "scheme does not have a
- * registered handler" in browsers without an OS map handler (v2-4 fix),
- * while https://maps.google.com works everywhere — desktop, Android, iOS.
- */
+/** Maps deep link for an item with coordinates (FR-ITN-09).
+ *
+ * v2.4 fix (restored in v2.6.1): the "Open in maps" anchor uses the
+ * UNIVERSAL web URL (maps.google.com/?q=…) — the geo: URI it previously
+ * bound throws "scheme does not have a registered handler" in browsers
+ * without an OS map handler (desktop Chrome/Edge, Firefox). The now-unused
+ * mapsGeo() helper is gone. */
 function mapsLink(item: ItemWithEditor): string {
   return item.lat !== null && item.lng !== null ? buildGeoLinks(item.lat, item.lng).webUrl : ''
 }
