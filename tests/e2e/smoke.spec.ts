@@ -141,6 +141,36 @@ test('the sign-in page offers password reset (FR-AUTH-08) and sign-up', async ({
   await expect(page).toHaveURL(/\/auth\/signup/)
 })
 
+test('the sign-up page offers Google sign-up alongside the email form (v2.8, FR-AUTH-02)', async ({
+  page,
+}) => {
+  // Arriving through an invite link: the redirect target must survive the
+  // Google OAuth round trip too (FR-AUTH-07) — same contract as the
+  // sign-in page's Google button.
+  await page.goto('/auth/signup?redirect=/join/abc123def456')
+  await waitForHydration(page)
+
+  // The email path stays the primary action; Google sits below the divider.
+  await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible()
+  await expect(page.getByText('or', { exact: true })).toBeVisible()
+  const google = page.getByRole('button', { name: 'Sign up with Google' })
+  await expect(google).toBeVisible()
+
+  // Clicking starts the Google OAuth flow: the browser navigates to the
+  // Supabase authorize endpoint, carrying the invite link through
+  // /auth/callback. (Fulfilled with a marker page so no real request
+  // leaves the test browser.)
+  await page.route('**/auth/v1/authorize*', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'text/plain', body: 'authorize-marker' })
+  })
+  await google.click()
+  await expect(page).toHaveURL(/\/auth\/v1\/authorize/, { timeout: 10_000 })
+  // redirect_to is encoded twice (the inner redirect query) — decode both.
+  const authorizeUrl = decodeURIComponent(decodeURIComponent(page.url()))
+  expect(authorizeUrl).toContain('provider=google')
+  expect(authorizeUrl).toContain('/auth/callback?redirect=/join/abc123def456')
+})
+
 test('the reset-password page explains an expired link (FR-AUTH-08)', async ({ page }) => {
   await page.goto('/auth/reset-password')
   // No valid recovery code → after the wait, the expired state appears.

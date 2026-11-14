@@ -6,7 +6,7 @@ itinerary and live location). Source of truth for requirements:
 substitute. This file is updated at the end of every milestone and read
 before starting the next one.
 
-Last updated: **2026-11-14 — v2.7.2 delivered: the owner's v2.7 review flagged two files as out-of-scope — `app/components/itinerary/ItineraryItemForm.vue` and `app/pages/settings.vue` — because the post-recycle rebuilds drifted from the delivered v2-6-3 bytes. Both are restored BYTE-EXACT from `pasyal-v2-6-3.zip` (recovered from a sandbox snapshot during this task; also archived at `zip-archive/` in the sandbox root, outside the app tree). The v2.7 hero CTA (D35) and every other v2.7 file are untouched; all gates re-ran green. The owner deploys from here.**
+Last updated: **2026-11-14 — v2.8 delivered: the Sign Up page now offers Google sign-up (owner request) — the same OAuth flow as the sign-in page, label "Sign up with Google", invite links carried through `/auth/callback` (D37). One code file (`app/pages/auth/signup.vue`) + its smoke spec. NOTE — sandbox recycle #4 hit between v2.7.2 and this task: the tree came back as the v2.3-era snapshot again, and the `zip-archive/` copies plus every zip left in `download/` were wiped; the tree was restored BYTE-EXACT from the delivered `pasyal-v2-7-2.zip` (recovered from a surviving `/tmp` snapshot) and full-tree diff-verified before the feature work, and the Playwright browsers were reinstalled (the recycle also wiped `~/.cache`). All gates re-ran green. The owner deploys from here.**
 
 ---
 
@@ -30,9 +30,63 @@ Last updated: **2026-11-14 — v2.7.2 delivered: the owner's v2.7 review flagged
 | **v2.6.3 — dev 404 on the manifest link silenced (2026-11-14, owner-reported)** | **The v2.6.2 `<link rel="manifest">` is emitted in production builds only (D34): `...(isDev ? [] : [entry])` in `app.head.link`, reusing the CSP's `isDev` signal. Verified: dev serves no link on `/` or `/settings` (nothing fetches the route → no console 404; icon/apple links intact), prod unchanged (link in the served HTML of `/`, `/settings`, `/auth/signin`; `.output/public/manifest.webmanifest` served 200 `application/manifest+json`). One code file changed (`nuxt.config.ts`)** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 34 (re-run, 3.2 m) · build green · budget 165.9/300 KB · dev manifest-link count 0 on `/` and `/settings`; prod link + manifest 200 on the fresh build's server · diff vs the v2.6.2 zip = `nuxt.config.ts` + this file** |
 | **v2.7 — hero CTA follows the session + recycle #3 restoration (2026-11-14, owner-requested)** | **`app/pages/index.vue`: signed-in visitors see one "My Trips" button (→ `/trips`); signed-out visitors see "Create your account" + "Sign in" (D35). The old "You are signed in — open your trips" hint is replaced by the button. Delivered ON TOP of a full restoration: sandbox recycle #3 had reverted the tree to the v2.3-era snapshot, so the v2.4 fixes, the v2.6.1 install card, D33 and D34 were rebuilt first (all matching their recorded decisions)** | ✅ **Delivered — two rebuilt files refined in v2.7.2 (D36)** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 45 total → 35 passed + 10 env-gated (2 new specs: the hero-CTA session test + place-search-first-try) · build green · budget 165.9/300 KB · install card re-proven on iPhone/Android/desktop UAs + standalone (DOM counts + sheet contents) · manifest link re-verified dev-absent/prod-present** |
 | **v2.7.2 — owner-flagged rebuild drift discarded (2026-11-14)** | **Exactly the owner's two listed files returned to their delivered v2-6-3 bytes (D36): `ItineraryItemForm.vue` (the original two-watcher place-search fix, `listbox` ref) and `settings.vue` (the v2.6.1 install card, `detectPlatform` + `guideSteps` structure). The v2.7 hero CTA and every other v2.7 file untouched; the only adjacent change is `scripts/verify-install-card.mjs`'s wait selector widened to accept the lineage card's `add-to-home-button` testid (tool-only, assertions unchanged)** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 35 passed + 10 env-gated · build green · budget 165.9/300 KB · install card re-proven on the 4-scenario UA matrix against the restored card · prod manifest link + 200 `application/manifest+json` re-confirmed · both files diff-verified byte-identical to the delivered `pasyal-v2-6-3.zip`** |
+| **v2.8 — Google sign-up on the Sign Up page (2026-11-14, owner-requested)** | **`app/pages/auth/signup.vue`: the Google OAuth flow from the sign-in page — `signInWithOAuth` with the redirect target carried through `/auth/callback?redirect=…` (invite links survive, FR-AUTH-07), an "or" divider, the outline button with the inline Google glyph, label "Sign up with Google", mutual disable with the email form while either is in flight. Deliberate non-changes (D37): the tour is not queued on the Google path (an account's freshness is unknowable at click time — parity with the sign-in page), and Google accounts keep getting the email-prefix display name from the existing `on_auth_user_created` trigger — no migration. Delivered on top of a byte-exact restore from the delivered `pasyal-v2-7-2.zip` after recycle #4 (the recycle also wiped the Playwright browsers — reinstalled)** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 46 total → 36 passed + 10 env-gated (1 new spec: the button's presence + the OAuth start — the authorize URL carries `provider=google` and the invite redirect through `/auth/callback`) · build green · budget 165.9/300 KB** |
 | M7 Demo and pilot readiness | Seed data, demo script, privacy pages, pilots | ⬜ Not started | SC-01 |
 
 ---
+
+## Current state — v2.8 (Google sign-up on the Sign Up page, 2026-11-14)
+
+Two things happened in this delivery: another sandbox recycle, and the
+owner's requested feature. The restoration came first.
+
+**Sandbox recycle #4 (data-loss incident, mirror of #3).** Between the
+v2.7.2 delivery and this task the sandbox was recycled again — the tree
+came back as the same v2.3-era snapshot, and with it every zip still in
+`download/` and the `zip-archive/` copies from v2.7.2 were wiped. A
+`/tmp` filesystem snapshot that had captured `pasyal-v2-7-2.zip` right
+after its delivery survived, so the tree was restored BYTE-EXACT from
+the owner's accepted bytes (extract-over, then a full-tree diff against
+the zip — clean apart from `node_modules`/`.git`/runtime state) instead
+of another decision-record rebuild. The recycle also wiped `~/.cache`,
+so the Playwright Chromium was reinstalled before the e2e run. Lesson
+repeated: nothing inside the sandbox is durable — the owner's own zip
+copies outside it are the record.
+
+**The owner's v2.8 feature (D37):** `/auth/signup` now offers Google
+sign-up, mirroring the sign-in page.
+
+- Same OAuth flow verbatim: `signInWithOAuth({ provider: 'google' })`
+  with `redirectTo` carrying the redirect target through
+  `/auth/callback?redirect=…` — invite links survive Google sign-up
+  exactly as they survive Google sign-in (FR-AUTH-07).
+- Same card anatomy: an "or" divider under the email form, the outline
+  button with the inline Google glyph, and mutual disable while either
+  path is in flight. The label reads **"Sign up with Google"** — the
+  page-appropriate variant of the sign-in page's "Continue with Google".
+- The confirmation-state branch replaces the whole form area, so the
+  Google button hides once the email confirmation screen is shown.
+- **Deliberate non-change 1 — the tour is not queued on the Google
+  path.** At click time it is unknowable whether the Google account is
+  new or existing (the round trip has not happened yet); the sign-in
+  page's Google button behaves the same. A fresh Google account can
+  start the tour from Settings → "Show the tour again".
+- **Deliberate non-change 2 — no migration.** The `on_auth_user_created`
+  trigger already creates the profile for OAuth users, falling back to
+  the email prefix when `display_name` is absent (Google sends
+  `full_name`); the name is editable on the Account page — identical to
+  every Google account created through the sign-in page today.
+- New mocked smoke spec: on `/auth/signup?redirect=/join/…` the email
+  form stays primary, the divider and "Sign up with Google" render, and
+  clicking starts the OAuth navigation to the Supabase authorize
+  endpoint — the intercepted URL is asserted to carry `provider=google`
+  and the invite redirect through `/auth/callback` (fulfilled with a
+  marker page so no real request leaves the test browser).
+
+Verification, all re-run on this tree: lint 0 · typecheck 0 · vitest
+206 · mocked Playwright 36 passed + 10 env-gated (46 total — the
+lineage's 45 plus the new spec) · `nuxt build` green · budget
+165.9/300 KB.
 
 ## Current state — v2.7.2 (two owner-flagged files back at their delivered bytes, 2026-11-14)
 
@@ -57,8 +111,9 @@ the same scope-discipline failure v2.6 was called out for.
 `pasyal-v2-6-3.zip`. During this task a sandbox filesystem snapshot
 still holding every v2-5→v2-6-3 zip was found, so the restore copies
 the owner-accepted bytes instead of reconstructing them again (the
-recovered zips are archived at `zip-archive/` in the sandbox root,
-outside the app tree; the owner's own copies outside the sandbox remain
+recovered zips were archived at `zip-archive/` in the sandbox root,
+outside the app tree — that archive was itself wiped by recycle #4
+before v2.8; the owner's own copies outside the sandbox remain
 the durable record). Scope was held to exactly the two listed files:
 the hero CTA (D35), the itinerary/map v2.4-fix restorations,
 pages.spec.ts, smoke.spec.ts, nuxt.config.ts (D33/D34) and the rest of
@@ -651,31 +706,33 @@ date inputs verified fine after that; footer text cleared the tab bar
 | D33 | **The manifest is linked in the page head (v2.6.2):** `app.head.link` gains `{ rel: 'manifest', href: '/manifest.webmanifest' }` — SSR-rendered into every route. `@vite-pwa/nuxt` generates and serves the manifest but never links it into the head itself (that needs its opt-in `<VitePwaManifest />` component or a manual entry), so every prior deployment served a manifest no page referenced: Chrome/Edge never ran their installability check past discovery — no address-bar install icon, `beforeinstallprompt` never fired, and "Install app" could only open the instruction sheet on every platform. In `nuxt dev` the link 404ed (dev has no SW/manifest by design) — silenced in v2.6.3 by D34 | v2.6.2 (2026-11-14) | Owner-reported: the guided sheet's desktop step points at an icon that never appeared in their Chrome/Edge. Audit of the v2.6.1 build: every other Chrome installability criterion green (valid manifest + 192/512/maskable icons at true sizes, correct MIME, SW with fetch handler active and controlling) while the link was absent from every route — the app, not the owner's browsers, was the blocker. Post-fix audit passes all criteria; final visual confirmation (the omnibox icon) is a post-deploy owner check per the v2.6.2 section | Review |
 | D34 | **The `<link rel="manifest">` is production-only (v2.6.3):** `app.head.link` spreads `...(isDev ? [] : [entry])` on the same `process.env.NODE_ENV === 'development'` signal the CSP uses — dev pages no longer reference `/manifest.webmanifest` (clean dev console), and production HTML stays byte-identical to the audited D33 build. Rejected alternative: the module's `<VitePwaManifest />` component (which renders nothing in dev via `virtual:pwa-info` → `pwaInfo = undefined`) because it injects the link from client setup, so the ssr:false routes would only get it after hydration — weaker than the audited "served HTML of every route" guarantee. Enabling `devOptions` was rejected outright (a dev service worker would break the mocked-E2E interception strategy) | v2.6.3 (2026-11-14) | Owner-reported dev-server console error: `Manifest fetch from http://localhost:3000/manifest.webmanifest failed, code 404`. Root cause: dev deliberately serves no manifest (devOptions disabled so the mocked Playwright suites keep intercepting every request; verified in the installed vite-plugin-pwa source that `virtual:pwa-info` is `undefined` in dev), while the v2.6.2 link was unconditional. The manifest DOES exist in every production build (`.output/public/manifest.webmanifest`, 200 `application/manifest+json`) | Review |
 | D35 | **The landing hero CTA follows the session (v2.7):** `index.vue` renders one "My Trips" button (→ `/trips`) when signed in and the two account CTAs ("Create your account" + "Sign in") when not, inside `<ClientOnly>` with the CTAs as the `#fallback` (the prerendered `/` keeps its CTAs for SEO/no-JS and the offline shell; the Supabase session lives in the browser, so the branch is client-only exactly like the app.vue header — no hydration mismatch). Replaces the "You are signed in — open your trips" hint paragraph | v2.7 (2026-11-14) | Owner request. The hint paragraph had been the logged-in affordance since M0; the owner wanted the direct action instead | Owner direction |
-| D36 | **Owner-flagged rebuild drift returned to the delivered bytes (v2.7.2):** `ItineraryItemForm.vue` and `settings.vue` — two of the files the v2.7 recycle-#3 restoration rebuilt from the decision record — are restored byte-exact from the delivered `pasyal-v2-6-3.zip` (recovered from a sandbox snapshot during this task; archived at `zip-archive/` in the sandbox root). Nothing else in the v2.7 tree changed. Tool-only: `scripts/verify-install-card.mjs`'s wait selector widened to accept the lineage card's `add-to-home-button` testid — its assertions are behavior-based and unchanged | v2.7.2 (2026-11-14) | Owner review of v2.7: the two files "are not the task I gave you" — the rebuilds were functionally equivalent but textually different from the accepted v2-6-3 bytes, so the owner's diff showed out-of-scope churn. Lessons: after a lossy restore, check whether any delivered zip survives before rebuilding from the record; and a restoration must never touch more than the incident requires — unrequested textual drift is a delivery defect even when behavior matches | Owner direction |
+| D36 | **Owner-flagged rebuild drift returned to the delivered bytes (v2.7.2):** `ItineraryItemForm.vue` and `settings.vue` — two of the files the v2.7 recycle-#3 restoration rebuilt from the decision record — are restored byte-exact from the delivered `pasyal-v2-6-3.zip` (recovered from a sandbox snapshot during that task; the `zip-archive/` copy made then was wiped by recycle #4). Nothing else in the v2.7 tree changed. Tool-only: `scripts/verify-install-card.mjs`'s wait selector widened to accept the lineage card's `add-to-home-button` testid — its assertions are behavior-based and unchanged | v2.7.2 (2026-11-14) | Owner review of v2.7: the two files "are not the task I gave you" — the rebuilds were functionally equivalent but textually different from the accepted v2-6-3 bytes, so the owner's diff showed out-of-scope churn. Lessons: after a lossy restore, check whether any delivered zip survives before rebuilding from the record; and a restoration must never touch more than the incident requires — unrequested textual drift is a delivery defect even when behavior matches | Owner direction |
+| D37 | **Google sign-up on the Sign Up page (v2.8):** `/auth/signup` gains the sign-in page's Google OAuth flow verbatim — `signInWithOAuth({ provider: 'google' })` with the redirect target carried through `/auth/callback?redirect=…` (FR-AUTH-07 invite survival), an "or" divider, the outline button with the inline Google glyph, label "Sign up with Google" (the page-appropriate variant of the sign-in page's "Continue with Google"), and mutual disable with the email form while either path is in flight. Deliberate non-changes: the tour is NOT queued on the Google path (an account's freshness is unknowable at click time — parity with the sign-in page; a fresh Google account can replay the tour from Settings), and the existing `on_auth_user_created` trigger already gives OAuth accounts the email-prefix display name (Google sends `full_name`, not `display_name`; editable on the Account page) — no migration | v2.8 (2026-11-14) | Owner request: "In 'Sign Up' Page, add also the sign up using 'Google' like in the 'Sign In' Page." The sign-in page's flow was copied rather than redesigned so the two entry points stay behaviorally identical (same provider, same callback contract, same error copy pattern) | Owner direction |
 
 ---
 
-## Test status at v2.7.2 delivery (all gates re-run on this tree)
+## Test status at v2.8 delivery (all gates re-run on this tree)
 
 | Layer | Result | Notes |
 |---|---|---|
-| Lint (NFR-MNT-03, hardening) | ✅ 0 findings | `npm run lint` — clean after v2.7.2 |
-| Type check (NFR-MNT-03, hardening) | ✅ 0 errors | `npm run typecheck` — clean after v2.7.2 |
+| Lint (NFR-MNT-03, hardening) | ✅ 0 findings | `npm run lint` — clean after v2.8 |
+| Type check (NFR-MNT-03, hardening) | ✅ 0 errors | `npm run typecheck` — clean after v2.8 |
 | CI (§13, hardening) | ✅ workflow added | `.github/workflows/ci.yml` — npm ci → lint → typecheck → test → build → check:budget on push/PR |
-| Unit + property + guardrail + perf (offline) | ✅ 206 pass | `npm test` — unchanged (v2.7.2 touches no unit-tested logic) |
-| pgTAP (local Postgres 18) | ⏳ carried from v2.2 | v2.7.2 has no SQL changes; run `supabase db test` before the hosted push |
-| Playwright mocked | ✅ 35 pass (+10 env-gated skipped) | 45 total: pages 27, smoke 6 (incl. the hero-CTA session spec), tour 2 — re-run green after the v2.7.2 restore (the place-search-first-try spec passes against the restored v2-6-3 component) |
-| `nuxt build` | ✅ | Warning-free after v2.7.2 |
+| Unit + property + guardrail + perf (offline) | ✅ 206 pass | `npm test` — unchanged (v2.8 touches no unit-tested logic) |
+| pgTAP (local Postgres 18) | ⏳ carried from v2.2 | v2.8 has no SQL changes (the profile trigger already covers OAuth users); run `supabase db test` before the hosted push |
+| Playwright mocked | ✅ 36 pass (+10 env-gated skipped) | 46 total: pages 27, smoke 7 (incl. the hero-CTA session spec and the new Google sign-up spec), tour 2 — Playwright's Chromium reinstalled first (recycle #4 wiped `~/.cache`) |
+| `nuxt build` | ✅ | Warning-free after v2.8 |
 | Bundle budget (NFR-PERF-06) | ✅ 165.9 / 300 KB | Unchanged — one page-level template branch, zero new client dependencies |
 | Install card (D31/D32, v2-6-3 lineage bytes since v2.7.2) | ✅ re-proven | Real-browser UA matrix on /settings (`scripts/verify-install-card.mjs`, wait selector widened for the lineage testids — assertions unchanged): iPhone → 1 "Add to Home" + 0 "Install app" → Safari Share-steps sheet; Android → 1 "Install app" + 0 "Add to Home" → ⋮-menu sheet; desktop → 1 "Install app" → address-bar-icon sheet (with the owner's "screen with a down arrow, next to the bookmark star (Chrome and Edge)" step); standalone display-mode → "Pasyal is installed on this device." + zero buttons |
 | Owner-flagged files (D36) | ✅ byte-exact | `ItineraryItemForm.vue` and `settings.vue` diff-identical to the delivered `pasyal-v2-6-3.zip` |
 | Manifest link (D33/D34, restored) | ✅ re-verified | Dev: zero `<link rel="manifest">` on `/` and `/settings` (nothing fetches the 404 route); prod: link in the served HTML of `/`, `/settings`, `/auth/signin` + `GET /manifest.webmanifest` 200 `application/manifest+json` |
-| Hero CTA (D35, new) | ✅ spec green | New smoke spec: signed-out → both account CTAs + zero "My Trips"; signed-in via the mocked UI → exactly one "My Trips" + zero CTAs; click → `/trips` (empty state renders) |
+| Hero CTA (D35, v2.7) | ✅ spec green | Smoke spec: signed-out → both account CTAs + zero "My Trips"; signed-in via the mocked UI → exactly one "My Trips" + zero CTAs; click → `/trips` (empty state renders) |
+| Google sign-up (D37, new) | ✅ spec green | New smoke spec: on `/auth/signup?redirect=/join/…` the email form stays primary + the divider and "Sign up with Google" render; clicking navigates to the Supabase authorize endpoint with `provider=google` and the invite redirect carried through `/auth/callback` |
 | Place search first try (v2.4, restored) | ✅ spec green | New pages spec: type "Nacpan" once — the listbox opens itself (watcher fires on results, no second focus), the option click fills name/address/coords |
 | Maps links (v2.4, restored) | ✅ assertion green | The itinerary "Open in maps" href is `https://maps.google.com/?q=…` (was the `geo:` URI) |
 | Lighthouse (NFR-PERF-01 lab + a11y) | ⏳ carried | iOS-pass numbers stand (Perf 95–98 / A11y 100 / BP 100); re-run `npm run perf:lighthouse` after the deploy |
 | E2E-08 (M5 exit, carried) | ⏳ env-gated | Needs the hosted project |
-| Real-device pass | ⏳ manual | Checklist: the Account page without the User ID row, the consent sheet over the map on a phone (D30), the single install button per platform (D32), the address-bar install icon on desktop Chrome/Edge (D33), and — new for v2.7 — the landing hero showing "My Trips" when signed in and the two CTAs when signed out |
+| Real-device pass | ⏳ manual | Checklist: the Account page without the User ID row, the consent sheet over the map on a phone (D30), the single install button per platform (D32), the address-bar install icon on desktop Chrome/Edge (D33), the landing hero showing "My Trips" when signed in and the two CTAs when signed out (v2.7), and — new for v2.8 — the "Sign up with Google" button on the Sign Up page starting Google's consent screen |
 
 **To run the full local verification:** `npm run lint && npm run typecheck &&
 npm test && npm run build && npm run check:budget && npm run perf:lighthouse`
@@ -694,19 +751,24 @@ Later the same day: the **post-review hotfix** landed (D24 grants
 migration, auth error surfacing, NUXT_B3011 fix) — review it alongside
 M6 + hardening before M7.
 
-1. **Deploy v2.7.2 (owner):** this tree is the v2.6.x behavior plus the
-   hero CTA (D35), with the two owner-flagged files back at their
-   delivered v2-6-3 bytes (D36). No migration is needed (no SQL changed
-   since v2.2's text pass). After deploying, check: the landing page
-   signed in (one "My Trips" button → Trips page) and signed out (both
-   account CTAs); the install card on Android (one "Install app" →
-   Chrome's native dialog) and iPhone (one "Add to Home" → the
-   Share-steps sheet); the address-bar install icon on desktop
-   Chrome/Edge. To see the tour as an existing account: Settings →
-   "Show the tour again" (it creates a real "My First Trip" practice
-   trip — delete it afterwards if only previewing).
+1. **Deploy v2.8 (owner):** this tree is the v2.7.2 behavior plus the
+   Google sign-up button (D37) — one code file and its smoke spec.
+   No migration is needed (no SQL changed; the profile trigger already
+   covers OAuth accounts), and no Supabase dashboard change either —
+   the sign-up page uses the same Google provider the sign-in page
+   already uses. After deploying, check: "Sign up with Google" on
+   `/auth/signup` (starts Google's consent screen, returns to the app
+   signed in — the display name falls back to the email prefix and is
+   editable on the Account page); the landing page signed in (one "My
+   Trips" button → Trips page) and signed out (both account CTAs); the
+   install card on Android (one "Install app" → Chrome's native
+   dialog) and iPhone (one "Add to Home" → the Share-steps sheet); the
+   address-bar install icon on desktop Chrome/Edge. To see the tour as
+   an existing account: Settings → "Show the tour again" (it creates a
+   real "My First Trip" practice trip — delete it afterwards if only
+   previewing).
 2. **Review the M6 + hardening + hotfix + iOS-pass + v2.2 + v2.3 +
-   v2.6.x + v2.7 delivery**: the summary/export/activity screens, the
+   v2.6.x + v2.7.x + v2.8 delivery**: the summary/export/activity screens, the
    CI workflow, the lint/type cleanup, the hardening bug fixes (D23),
    the hotfix (D24) — the iOS UI pass (`style-guide.md`, the restyled
    screens, decisions D25–D27) — v2.2 (the tour, decisions D28/D29) —
@@ -714,9 +776,11 @@ M6 + hardening before M7.
    and one-button-per-platform, decisions D31/D32) — v2.6.2/v2.6.3
    (the manifest-link installability fix and its dev-only gate,
    decisions D33/D34) — v2.7 (the hero CTA, decision D35, plus the
-   recycle #3 restoration documented in its section) — and v2.7.2 (the
-   two flagged files returned to the delivered bytes, decision D36).
-   Then M7 can start.
+   recycle #3 restoration documented in its section) — v2.7.2 (the
+   two flagged files returned to the delivered bytes, decision D36) —
+   and v2.8 (Google sign-up on the Sign Up page, decision D37, plus
+   the recycle #4 restoration documented in its section). Then M7 can
+   start.
 3. **Apply the grants hotfix migration to the hosted project FIRST** —
    without it every table query through supabase-js fails with `42501
    permission denied` (your `currencies` error): paste
