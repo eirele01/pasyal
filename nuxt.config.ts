@@ -191,6 +191,34 @@ export default defineNuxtConfig({
       link: [
         { rel: 'icon', href: '/icons/icon-64.png' },
         { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
+        // v2.6.2 (D33): the link Chrome/Edge use to discover the PWA
+        // manifest — without it the browser never fetches the manifest,
+        // so the site is never installable: no address-bar install icon
+        // (the "screen with a down arrow" the guided sheet points at) and
+        // beforeinstallprompt never fires, leaving the guided sheet as the
+        // only path everywhere (the owner's v2.6.1 report). @vite-pwa/nuxt
+        // generates and serves the manifest but does NOT link it into the
+        // page head itself — this entry (or its <VitePwaManifest />
+        // component) is required.
+        //
+        // v2.6.3 (D34): production builds only. `nuxt dev` deliberately
+        // serves no manifest or service worker (devOptions stay disabled
+        // so the mocked Playwright suites keep intercepting every request),
+        // and vite-plugin-pwa agrees: in dev `virtual:pwa-info` resolves to
+        // `pwaInfo = undefined`, so even the module's own
+        // <VitePwaManifest /> renders no link there. The unconditional
+        // v2.6.2 link therefore made every dev page fetch a route that
+        // only exists after `nuxt build` (`.output/public/
+        // manifest.webmanifest`, served 200 `application/manifest+json`),
+        // logging the owner-reported "Manifest fetch ... failed, code 404"
+        // console error. Gating on the same signal the CSP already uses
+        // (`isDev`) keeps the production HTML — and the D33 installability
+        // audit — byte-identical and silences dev. Verified: dev serves no
+        // link (clean console, route unreferenced), prod serves the link
+        // in the HTML of both SSR and ssr:false routes plus the manifest.
+        ...(isDev
+          ? []
+          : ([{ rel: 'manifest', href: '/manifest.webmanifest' }] as const)),
       ],
     },
   },

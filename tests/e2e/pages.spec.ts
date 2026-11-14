@@ -571,7 +571,7 @@ test('the itinerary shows days, ordered items, edited-by and maps links (UI-10, 
   await expect(page.getByText('🚗 Flight to Puerto Princesa').first()).toBeVisible()
 
   // "Open in maps" deep link (FR-ITN-09) and booking link (FR-ITN-11).
-  // v2-5: the anchor uses the universal web URL — geo: URIs have no
+  // v2-4: the anchor uses the universal web URL — geo: URIs have no
   // registered handler in most desktop browsers.
   const mapsLink = page.getByRole('link', { name: 'Open in maps' }).first()
   await expect(mapsLink).toHaveAttribute(
@@ -652,52 +652,64 @@ test('the add-item form renders place search, the day select and the pin map (UI
   ])
 })
 
-test('place search results appear on the first try, without refocusing (v2-5, FR-MAP-03)', async ({
+test('place search results appear on the first try, without refocusing (v2-4, FR-MAP-03)', async ({
   page,
 }) => {
+  // Phone size: the Location field sits near the bottom of the bottom-sheet
+  // dialog, which is where both halves of the bug live (list not opening;
+  // list opening below the visible area).
+  await page.setViewportSize({ width: 390, height: 520 })
   await signInWithItinerary(page, `/trips/${TRIP_ID}/itinerary`)
 
-  // Phone-sized viewport: the add-item form is a bottom sheet here, the
-  // layout the owner tested.
-  await page.setViewportSize({ width: 390, height: 520 })
-  await page.getByRole('button', { name: '+ Add item' }).first().click()
-  const dialog = page.getByRole('dialog')
-  await expect(dialog).toBeVisible()
-
-  // The places proxy answers with one result (same shape as the API).
-  // Registered after the catch-all so it takes precedence for this URL.
-  await page.route('**/api/places/search*', (route) =>
-    route.fulfill({
+  // Registered last → runs first; non-places requests fall through to the
+  // trip mocks installed by signInWithItinerary.
+  await page.route('**/api/places/search*', async (route) => {
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         results: [
           {
-            id: 'place-1',
+            id: 'osm-1',
             name: 'Pension De Coron',
             address: 'Tapyas Road, Coron, Palawan, Philippines',
             lat: 12.0009891,
             lng: 120.2041789,
           },
+          {
+            id: 'osm-2',
+            name: 'Coron Wrecks Dive Shop',
+            address: 'Coron Town Proper, Palawan, Philippines',
+            lat: 12.0011,
+            lng: 120.2011,
+          },
         ],
       }),
-    }),
-  )
+    })
+  })
 
-  // Focus the location field once and type — the listbox must appear by
-  // itself after the debounce, without blurring and refocusing (v2-5 fix).
-  const box = dialog.getByLabel('Location (optional)', { exact: false })
-  await box.click()
-  await box.pressSequentially('Pension De Coron', { delay: 40 })
-  await expect(dialog.getByRole('listbox')).toBeVisible({ timeout: 5_000 })
-  const results = dialog.getByRole('listbox').getByRole('option')
-  await expect(results.first()).toContainText('Pension De Coron')
+  await page.getByRole('button', { name: '+ Add item' }).first().click()
+  const dialog = page.getByRole('dialog')
+  const locationField = dialog.getByLabel('Location (optional)', { exact: false })
+  await locationField.click()
+  await locationField.fill('Pension De Coron')
 
-  // Choosing the result fills the location (FR-ITN-03) — the chosen
-  // name and address render under the search box.
-  await results.first().click()
+  // The suggestion list opens by itself when results arrive (v2-4 fix —
+  // before, it only opened on the field's second focus) and is scrolled
+  // into the visible part of the sheet (second half of the fix).
+  const listbox = dialog.getByRole('listbox')
+  await expect(listbox).toBeVisible()
+  await expect(listbox).toBeInViewport({ ratio: 0.5 })
+  const option = dialog.getByRole('option', { name: /Pension De Coron/ })
+  await expect(option).toBeVisible()
+
+  // Choosing the suggestion stores the place.
+  await option.click()
   await expect(dialog.getByText('Tapyas Road, Coron, Palawan, Philippines')).toBeVisible()
-  await expect(dialog.getByText('(12.0010, 120.2042)')).toBeVisible()
+  await expect(dialog.getByRole('link', { name: 'Preview in maps' })).toHaveAttribute(
+    'href',
+    'https://maps.google.com/?q=12.0009891,120.2041789',
+  )
 })
 
 // ══════════════════════════════════════════════════════════════════════

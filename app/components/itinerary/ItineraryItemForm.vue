@@ -63,13 +63,24 @@ const showMap = ref(Boolean(props.item?.lat))
 // ── Place search (FR-MAP-03) ───────────────────────────────────────────
 const { query, suggestions, searching, searchError } = usePlaceSearch()
 const openSuggestion = ref<number | null>(null)
+const listbox = ref<HTMLUListElement | null>(null)
 
-// v2-5 fix (FR-MAP-03): results that arrive while typing must open the
-// listbox by themselves. The @focus handler alone never fired for the
-// first search — suggestions were still empty at focus time, so the user
-// had to leave the field and refocus it before anything appeared.
+// v2-4 fix: open the suggestion list the moment results arrive. Before,
+// the list only opened on the field's @focus — and at first focus there
+// are no suggestions yet, so the first search's results stayed hidden
+// until the user focused another field and came back.
 watch(suggestions, (list) => {
-  if (list.length) openSuggestion.value = 0
+  openSuggestion.value = list.length > 0 ? 0 : null
+})
+
+// v2-4 fix, second half: on phones the Location field sits near the
+// bottom of the scrollable bottom-sheet dialog, so the list would open
+// below the visible area. Scroll the freshly opened list into view
+// inside the dialog (the input stays right above it).
+watch(openSuggestion, async (open) => {
+  if (open === null) return
+  await nextTick()
+  listbox.value?.scrollIntoView({ block: 'nearest' })
 })
 
 function chooseSuggestion(index: number) {
@@ -209,7 +220,8 @@ const previewLink = computed(() =>
         <p v-if="searchError" class="text-destructive mt-1 text-xs" role="alert">{{ searchError }}</p>
         <ul
           v-if="openSuggestion !== null && suggestions.length"
-          class="bg-background absolute z-50 mt-1 w-full overflow-hidden rounded-md border shadow-lg"
+          ref="listbox"
+          class="bg-background absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border shadow-lg"
           role="listbox"
         >
           <li

@@ -154,10 +154,10 @@ async function onMove(dayId: string, item: ItemWithEditor, direction: -1 | 1) {
 }
 
 /**
- * Maps deep link for an item with coordinates (FR-ITN-09). v2-5: uses the
- * universal https URL — geo: URIs have no registered handler in most
- * desktop browsers ("Failed to launch 'geo:…'"), while the web URL works
- * everywhere, opening the Maps app or site as the platform decides.
+ * Maps deep link for an item with coordinates (FR-ITN-09). The web URL
+ * is used for the anchor itself: geo: URIs throw "scheme does not have a
+ * registered handler" in browsers without an OS map handler (v2-4 fix),
+ * while https://maps.google.com works everywhere — desktop, Android, iOS.
  */
 function mapsLink(item: ItemWithEditor): string {
   return item.lat !== null && item.lng !== null ? buildGeoLinks(item.lat, item.lng).webUrl : ''
