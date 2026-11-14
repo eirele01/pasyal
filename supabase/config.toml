@@ -1,0 +1,44 @@
+# Supabase CLI project configuration (SPEC §1.6)
+# Docs: https://supabase.com/docs/guides/cli/config
+#
+# Used by: supabase link / db push / db test.
+# `supabase db test` (pgTAP, supabase/tests/) needs Docker for the local stack.
+#
+# No secrets live here — auth keys and the database password stay in the
+# Supabase dashboard and your local .env (see .env.example).
+
+project_id = "foiltfxiazkfdzuwbvio"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+# Match the hosted Data API behavior (Supabase changelog 45329, 2026-10-30):
+# new public tables are NOT auto-granted to anon/authenticated/service_role.
+# Migrations must carry explicit GRANTs — see
+# 20261111130000_m6_hotfix_data_api_grants.sql and README → Database.
+auto_expose_new_tables = false
+
+[db]
+port = 54322
+shadow_port = 54320
+# Keep this in sync with the hosted project's Postgres major version
+# (Dashboard → Settings → Infrastructure). Adjust if yours differs.
+major_version = 15
+
+[db.pooler]
+enabled = true
+port = 54329
+pool_mode = "transaction"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+# The production URLs are configured in the Supabase dashboard
+# (Authentication → URL Configuration); see README → Auth configuration.
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "https://pasyal.vercel.app/auth/callback",
+]

@@ -1,0 +1,288 @@
+/* ──────────────────────────────────────────────────────────────────────
+   Pasyal design tokens — M0 "design tokens" exit criterion (SPEC §14.2)
+   Tailwind CSS v4 + shadcn-vue conventions.
+
+   Neutral base (shadcn "neutral") with an emerald brand primary.
+   Primary/foreground pairs are contrast-checked for WCAG 2.1 AA
+   (NFR-UX-04): emerald-700 on white in light mode, emerald-500 with
+   emerald-950 text in dark mode.
+
+   ── iOS design language pass (2026-11-12, style-guide.md) ──────────
+   The visual language follows Apple's Human Interface Guidelines —
+   Clarity, Deference, Depth — while keeping the emerald brand palette:
+
+   * Typography: SF Pro on Apple devices (-apple-system first); the
+     stack falls back to the platform system font elsewhere.
+   * Surfaces: iOS "grouped" background — the page is a light system
+     gray, cards are white (pure near-black + #1c1c1e cards in dark
+     mode). Content sits ON the background, not in it.
+   * Shape: 12 px base radius (--radius); cards 16, sheets 24+, pill
+     buttons and badges.
+   * Motion: standard iOS easing tokens (--ease-ios*), 0.97 press
+     scale on controls, 220 ms page transitions; everything collapses
+     under prefers-reduced-motion.
+   * Materials: .ios-material (frosted, saturating translucency) for
+     the app chrome (header, tab bar) — see style-guide.md.
+   * Color palette (emerald brand) is UNCHANGED from M0–M6.
+   ────────────────────────────────────────────────────────────────────── */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.75rem;
+  /* iOS systemGroupedBackground-equivalent neutral (#f5f5f5): the page
+     canvas sits one step below white cards (2026-11-12 pass). */
+  --background: oklch(0.967 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.508 0.118 165.612); /* emerald-700 */
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  /* M6 NFR-UX-04, re-tuned 2026-11-12 for the grouped gray background:
+     neutral-600-level gray keeps secondary text at ≥ 4.5:1 on BOTH the
+     white cards (5.5:1) and the #f5f5f5 page (5.3:1). */
+  --muted-foreground: oklch(0.47 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.8077 0.1524 163.229); /* emerald-400 */
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.508 0.118 165.612);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.8077 0.1524 163.229);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.696 0.17 162.48); /* emerald-500 */
+  --primary-foreground: oklch(0.262 0.051 172.552); /* emerald-950 */
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.596 0.145 163.225); /* emerald-600 */
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.696 0.17 162.48);
+  --sidebar-primary-foreground: oklch(0.262 0.051 172.552);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.596 0.145 163.225);
+}
+
+@theme inline {
+  /* SF Pro first on Apple devices; platform system font everywhere else
+     (Roboto on Android, Segoe on Windows) — the iOS pass is about the
+     system's native face, not bundling a font. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "SF Pro Display", ui-sans-serif, system-ui, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  /* iOS motion curves (style-guide.md → Motion). Used via the Tailwind
+     ease-ios / ease-ios-emphasized / ease-ios-spring utilities. */
+  --ease-ios: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-ios-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-ios-spring: cubic-bezier(0.34, 1.3, 0.5, 1);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    /* iOS app feel: no gray tap flash on touch (2026-11-12). */
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer components {
+  /* Frosted, saturating material for the app chrome (header, tab bar) —
+     the "material" half of iOS Depth. Solid-color fallback is inherent:
+     the background color mix keeps text contrast even where
+     backdrop-filter is unsupported (Lighthouse-safe). */
+  .ios-material {
+    background-color: color-mix(in oklab, var(--background) 82%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+}
+
+/* ── Page transitions (iOS pass, 2026-11-12) ───────────────────────────
+   Enabled by `app.pageTransition` in nuxt.config.ts. A quiet fade with a
+   small rise — tab switches inside a trip render without a transition
+   (the nested NuxtPage has none), matching iOS tab semantics. */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity 0.22s var(--ease-ios),
+    transform 0.22s var(--ease-ios);
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(0.5rem);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-0.25rem);
+}
+
+/* ── Dialog scrim (iOS pass, 2026-11-12) ────────────────────────────────
+   Used by app/components/ui/dialog/DialogContent.vue. A 200 ms opacity
+   fade; collapses under prefers-reduced-motion like every other motion. */
+.dialog-scrim-enter-active,
+.dialog-scrim-leave-active {
+  transition: opacity 0.2s var(--ease-ios);
+}
+.dialog-scrim-enter-from,
+.dialog-scrim-leave-to {
+  opacity: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   M6 accessibility pass — NFR-UX-02: touch targets at least 44 × 44 px.
+
+   Applied only on coarse pointers (phones, tablets) so desktop density
+   is untouched. Interactive controls — buttons, form fields, Leaflet
+   zoom buttons and bottom-tab links — get minimum dimensions. Inline
+   text links are deliberately exempt (they sit in reading flows, not
+   touch bars). Map markers stay visual: their information is duplicated
+   in the itinerary list, and inflating pins would redesign the map
+   (documented in project-state.md, M6).
+
+   2026-11-12 (iOS pass): switches left this list. The iOS-sized switch
+   is 52 × 31 px; stretching its track to 44 px would destroy the
+   control, so the tap target is EXPANDED INVISIBLY with an ::after
+   pseudo-element instead (Apple's UISwitch behaves the same way).
+   ────────────────────────────────────────────────────────────────────── */
+@media (pointer: coarse) {
+  button:not(:disabled),
+  [role='button']:not(:disabled),
+  [role='tab'],
+  input:not([type='hidden']),
+  select,
+  textarea,
+  summary {
+    min-height: 2.75rem; /* 44 px */
+  }
+
+  /* Switches: invisible 44 px+ hit area via pseudo-element. */
+  [role='switch'] {
+    position: relative;
+  }
+  [role='switch']::after {
+    content: '';
+    position: absolute;
+    inset: -0.45rem;
+  }
+
+  /* Button-like controls also need the width so icon-only hits land. */
+  button:not(:disabled),
+  [role='button']:not(:disabled),
+  .leaflet-bar a {
+    min-width: 2.75rem;
+  }
+
+  /* Leaflet's zoom buttons ship at 26 × 26 px. */
+  .leaflet-bar a {
+    width: 2.75rem;
+    height: 2.75rem;
+    line-height: 2.75rem;
+  }
+
+  /* Bottom tab bar rows: 48 px targets (blockified flex links). */
+  nav[aria-label] a {
+    min-height: 3rem;
+  }
+}
+
+/* ── Reduced motion (iOS pass, 2026-11-12) ─────────────────────────────
+   The whole motion layer collapses for users who ask for it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,31 @@
+# Nuxt build output
+.nuxt
+.output
+.data
+dist
+
+# Node
+node_modules
+*.log*
+
+# Environment — never commit real keys (SPEC §1.5 rule 6).
+# Only .env.example (placeholders) is committed.
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel
+
+# Supabase CLI
+supabase/.branches
+supabase/.temp
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Playwright
+test-results/
+playwright-report/
+.blob-router/

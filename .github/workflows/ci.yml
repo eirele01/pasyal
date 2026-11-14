@@ -1,0 +1,55 @@
+# Pasyal — continuous integration (SPEC §13: "On each pull request: type
+# check, lint, unit tests, build"). GitHub Actions is outside the §1.5
+# stack, so this file exists by owner approval only (2026-11-11, recorded
+# in project-state.md D21 and README "Dependencies").
+#
+# Deliberately MINIMAL:
+#   * no secrets, no env — the vitest suite is offline, and `nuxt build`
+#     only warns when SUPABASE_KEY is missing (every deploy sets it);
+#   * no pgTAP (needs the Supabase CLI + Docker local stack) and no
+#     hosted-project E2E specs (need credentials) — both stay local/
+#     manual, see README "Tests";
+#   * no Playwright / Lighthouse — they stay out of the fast feedback
+#     loop (the full matrix is documented in project-state.md).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# New commits supersede older runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # engines: >=20.19
+          cache: npm
+
+      # postinstall runs `nuxt prepare`, which also generates
+      # .nuxt/eslint.config.mjs for the lint step.
+      - name: Install (exact lockfile)
+        run: npm ci
+
+      - name: Lint (NFR-MNT-03)
+        run: npm run lint
+
+      - name: Type check (NFR-MNT-03)
+        run: npm run typecheck
+
+      - name: Unit + property + guardrail + performance tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Bundle budget (NFR-PERF-06)
+        run: npm run check:budget
