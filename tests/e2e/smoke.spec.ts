@@ -80,7 +80,9 @@ function hero(page: Page) {
 test('homepage renders the hero', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Group travel, sorted.' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Create your account' })).toBeVisible()
+  // v2.10: the landing story carries the account CTAs in BOTH the hero
+  // and the final chapter — .first() keeps this check about presence.
+  await expect(page.getByRole('link', { name: 'Create your account' }).first()).toBeVisible()
   await expect(page.getByText('Installable as an app (PWA) on Android and iPhone.')).toBeVisible()
 })
 

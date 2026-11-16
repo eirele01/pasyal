@@ -6,7 +6,7 @@ itinerary and live location). Source of truth for requirements:
 substitute. This file is updated at the end of every milestone and read
 before starting the next one.
 
-Last updated: **2026-11-14 — v2.8 delivered: the Sign Up page now offers Google sign-up (owner request) — the same OAuth flow as the sign-in page, label "Sign up with Google", invite links carried through `/auth/callback` (D37). One code file (`app/pages/auth/signup.vue`) + its smoke spec. NOTE — sandbox recycle #4 hit between v2.7.2 and this task: the tree came back as the v2.3-era snapshot again, and the `zip-archive/` copies plus every zip left in `download/` were wiped; the tree was restored BYTE-EXACT from the delivered `pasyal-v2-7-2.zip` (recovered from a surviving `/tmp` snapshot) and full-tree diff-verified before the feature work, and the Playwright browsers were reinstalled (the recycle also wiped `~/.cache`). All gates re-ran green. The owner deploys from here.**
+Last updated: **2026-11-16 — v2.10-2 delivered: two owner-requested changes on the v2.10-1 landing — (1) the Money chapter's `money-settle` block is REMOVED (the tangle-to-payments beat — the decorative everyone-pays-everyone SVG that crossed the cards mid-scrub, the "4 payments settle everything" card, and the receipt-pose turtle): the chapter now ends on the §6.6 receipts + balances tally, the intro copy no longer narrates the removed beat, and the scrub track is re-tuned (240→200svh, beats filling the whole pin window — no dead scroll); (2) a new animated travel-scenery backdrop (`LandingScenery.server.vue`): distant mountain ranges, a river flowing into a lake, and a two-band ocean lapping along the bottom edge behind the whole story — ambient CSS loops (wave drift, river flow dashes, lake ripples, SDA mountain parallax) all gated by `prefers-reduced-motion`, palette WCAG-verified in both schemes (worst text-on-scenery pairing 5.0:1). Found while wiring it: the landing's dark palettes had NEVER applied (a leading `:global(html.dark) .x` compiles to a bare `html.dark` rule — the known D39 caveat — losing to the direct light values); fixed with fully-global selectors in the three components this task touches. Gates: lint 0 · typecheck 0 · vitest 206 · Playwright 44 + 10 env-gated · build green · budget 171.7/300 KB · landing CSS 4.56 KB gz (budget 8) · SVG 16.87 KB raw (budget 25) · Lighthouse 97 / A11y 100 / BP 100 / LCP 1.21 s · vision review light+dark. NOTE — sandbox recycle #8 hit before this task (the v2.3-era snapshot again): a `/tmp/my-project` snapshot still held the full zip-archive including the delivered `pasyal-v2-10-1.zip`; the tree was restored from it (rsync over the stale tree, node_modules/.git/.data preserved), the archives re-copied, and a stale dev server on port 3000 killed. The owner deploys from here.**
 
 ---
 
@@ -31,9 +31,421 @@ Last updated: **2026-11-14 — v2.8 delivered: the Sign Up page now offers Googl
 | **v2.7 — hero CTA follows the session + recycle #3 restoration (2026-11-14, owner-requested)** | **`app/pages/index.vue`: signed-in visitors see one "My Trips" button (→ `/trips`); signed-out visitors see "Create your account" + "Sign in" (D35). The old "You are signed in — open your trips" hint is replaced by the button. Delivered ON TOP of a full restoration: sandbox recycle #3 had reverted the tree to the v2.3-era snapshot, so the v2.4 fixes, the v2.6.1 install card, D33 and D34 were rebuilt first (all matching their recorded decisions)** | ✅ **Delivered — two rebuilt files refined in v2.7.2 (D36)** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 45 total → 35 passed + 10 env-gated (2 new specs: the hero-CTA session test + place-search-first-try) · build green · budget 165.9/300 KB · install card re-proven on iPhone/Android/desktop UAs + standalone (DOM counts + sheet contents) · manifest link re-verified dev-absent/prod-present** |
 | **v2.7.2 — owner-flagged rebuild drift discarded (2026-11-14)** | **Exactly the owner's two listed files returned to their delivered v2-6-3 bytes (D36): `ItineraryItemForm.vue` (the original two-watcher place-search fix, `listbox` ref) and `settings.vue` (the v2.6.1 install card, `detectPlatform` + `guideSteps` structure). The v2.7 hero CTA and every other v2.7 file untouched; the only adjacent change is `scripts/verify-install-card.mjs`'s wait selector widened to accept the lineage card's `add-to-home-button` testid (tool-only, assertions unchanged)** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 35 passed + 10 env-gated · build green · budget 165.9/300 KB · install card re-proven on the 4-scenario UA matrix against the restored card · prod manifest link + 200 `application/manifest+json` re-confirmed · both files diff-verified byte-identical to the delivered `pasyal-v2-6-3.zip`** |
 | **v2.8 — Google sign-up on the Sign Up page (2026-11-14, owner-requested)** | **`app/pages/auth/signup.vue`: the Google OAuth flow from the sign-in page — `signInWithOAuth` with the redirect target carried through `/auth/callback?redirect=…` (invite links survive, FR-AUTH-07), an "or" divider, the outline button with the inline Google glyph, label "Sign up with Google", mutual disable with the email form while either is in flight. Deliberate non-changes (D37): the tour is not queued on the Google path (an account's freshness is unknowable at click time — parity with the sign-in page), and Google accounts keep getting the email-prefix display name from the existing `on_auth_user_created` trigger — no migration. Delivered on top of a byte-exact restore from the delivered `pasyal-v2-7-2.zip` after recycle #4 (the recycle also wiped the Playwright browsers — reinstalled)** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 46 total → 36 passed + 10 env-gated (1 new spec: the button's presence + the OAuth start — the authorize URL carries `provider=google` and the invite redirect through `/auth/callback`) · build green · budget 165.9/300 KB** |
+| **v2.9 — offline-mode audit report (2026-11-15, owner-requested)** | **[`offline-mode-state.md`](offline-mode-state.md) at the repo root: a full audit of the app's offline behavior — the verdict (read-mostly PWA with a queued-write path), the four-layer architecture (SW shell/navigations/tiles, read snapshots, write queue, online/offline UI), a screen-by-screen offline catalog for every route, both transitions (online→offline, offline→online), the storage/cache inventory, what the tests prove, nine documented gaps/accepted limitations, a 5-minute manual offline walkthrough, and five prioritized recommendations (listed, NOT implemented). Documentation only — zero code changes (D38). Delivered on top of a byte-exact restore from the delivered `pasyal-v2-8.zip` after recycle #5 (Chromium reinstalled; a stale pre-restore dev server on port 3000 killed first)** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 36 passed + 10 env-gated (the v2.8 baseline re-run on the restored tree) · build green · budget 165.9/300 KB · report grounded in file-level evidence, no placeholders** |
+| **v2.10 — immersive scroll-driven landing page (2026-11-15, owner-requested)** | **`app/pages/index.vue` becomes a thin page over `app/components/landing/*`: Hero ("Group travel, sorted." + the D35 session CTAs + the turtle peeking in) → Plan (pinned stage; the dashed route draws itself, day cards stack, a mini turtle swims the route) → Money (§6.6 receipts drop in, balance bars fill, the debt tangle collapses into "Dan pays Ana ₱5,500") → Map (island mini-map, itinerary pins, member dots — the opt-in/only-while-open promise) → Works anywhere (grounded in the v2.9 audit; keeps the exact smoke-tested install line) → Final CTA ("Make your first trip.", session-aware like the hero). One sea-turtle mascot (D39): a single SVG with pose groups (peek/receipt/point/wave), time-based blink, scroll-timeline pupil drift, dark-mode palette. Zero new dependencies: the scrubbed animation is pure CSS `animation-timeline: view()` (compositor-only, wrapped in `@supports` + `prefers-reduced-motion: no-preference`); browsers without SDA get the static base layout + a ~1 KB IntersectionObserver reveal (`useLandingMotion`); the Plan/Money/Map/Offline chapters are Nuxt **server components** (`.server.vue` — zero client JS; Hero/Final CTA stay client for the session CTAs). All copy is DOM text; every SVG is aria-hidden; `content-visibility: auto` on the two simple chapters; reserved stage heights (CLS 0)** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated (8 new landing specs: 390×844 content+SDA+session, 360×640, 320 px overflow floor, reduced-motion static contract, no-JS prerender contract, ?landing=static reveal path) · landing+smoke specs also green against the production build · build green · budget 171.7/300 KB · landing CSS 4.46 KB gz / SVG 16.9 KB raw / Lighthouse mobile median 95 over 9 runs (89–97; A11y 100 · BP 100 · LCP ~1.2 s) — the v2.9 baseline measured 97–99 in the same sandbox (the landing's cost is the price of the story, kept within the owner's budgets)** |
+| **v2.10-1 — owner-review fixes on the landing page (2026-11-16)** | **Exactly four presentational fixes on the v2.10 story, nothing else: Hero — the scroll hint centers under the text column at ≥640 px (it was pinned to the far-left edge on wide screens; on phones it stays bottom-left where the turtle owns the bottom-right) and the hero gains `margin-bottom: clamp(2rem, 7vh, 3.5rem)` before Plan; Plan — the day cards restructure to a fixed day / activity / time stack (grid `1fr` rows, capped width — the owner's sketch) so all three cards share one height and width; Money (D40) — every receipt shows its §6.6 split ("₱4,800 each · all 5"; dinner "₱1,500 each · no Ella"), the settle-up card lists all four payments (Ella→Ana 8,500 · Dan→Ana 5,500 · Dan→Carla 2,000 · Ben→Carla 4,000, "Everyone lands on ₱0 — check the math."), the balance bars get visible warm-sand fills for owes (they read as loading skeletons before), plus short-viewport handling (≤740 px tighter rhythm; ≤600 px the chapter unpins instead of clipping); Map (D41) — members become named person badges (person glyph, live ring, name label; names also in the DOM legend with color chips) and the resting placements repaired. The Offline/Final chapters, `tailwind.css`, app logic, SPEC, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated (the landing content spec extended with the new contracts: split lines, all four payments, plan time lines, marker + legend assertions) · landing+smoke specs green against the production build · build green · budget 171.7/300 KB · landing CSS 5.05 KB gz (budget 8) · SVG 18.2 KB raw (budget 25) · Lighthouse mobile 95 / A11y 100 / BP 100 / LCP 1.22 s · new 6-viewport pinned-stage fit harness (320×568 → 1440×900) all green · before/after vision review (hero, money rest+mid+dark, map light+dark, plan)** |
+| **v2.10-2 — settle-up block removed + animated travel scenery (2026-11-16, owner-requested)** | **Exactly two changes: Money (D42) — the `money-settle` block (the decorative debt-tangle SVG + the "4 payments settle everything" card + the receipt-pose turtle) is removed at the owner's direction ("can you check what is this money-settle do? i think its better to remove it"); the chapter keeps the §6.6 receipts with their split lines and the balances tally, the intro sentence that narrated the tangle→payments beat is rewritten, and the scrub track is shortened 240→200svh with the beats re-mapped to fill the whole pin window; Scenery (D43) — a new `LandingScenery.server.vue` backdrop behind the whole story: two mountain ranges (gradient-faded feet), a river with an animated flow line winding into a lake with breathing ripples, and a two-band ocean lapping along the viewport bottom — ambient `prefers-reduced-motion`-gated loops + SDA `scroll(root)` mountain parallax, `isolation: isolate` on the story root for the z-index -1 layer, WCAG-verified palette both schemes. Fallout fix (D44): the landing's `:global(html.dark) .x` dark rules never applied (the compiler drops the descendant — the recorded D39 caveat); the three task-touched components now use fully-global `:global(html.dark .x)` selectors, so dark mode actually flips the map frame/islands, the owes bars, and the scenery. The Plan/Map/Offline/Final chapters, the turtle, `tailwind.css`, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated (landing spec updated: payments/tangle absence asserted, balances contracts added, scenery presence, turtle count 4→3) · landing+smoke specs green against the production build · build green · budget 171.7/300 KB · landing CSS 4.56 KB gz (budget 8) · SVG 16.87 KB raw (budget 25 — the tangle+turtle removal outweighs the scenery) · Lighthouse mobile 97 / A11y 100 / BP 100 / LCP 1.21 s · vision review (hero/plan/money/final light+dark, desktop fade) · recycle #8 restoration from `/tmp/my-project/zip-archive/pasyal-v2-10-1.zip`** |
 | M7 Demo and pilot readiness | Seed data, demo script, privacy pages, pilots | ⬜ Not started | SC-01 |
 
 ---
+
+## Current state — v2.10-2 (settle-up block removed + travel scenery, 2026-11-16)
+
+The owner reviewed v2.10-1 and asked for exactly two changes (their words):
+"In Landing Money section, can you check what is this 'money-settle' do?
+i think its better to remove it." and "Can you add a additional background
+like, mountain, lake, river, ocean and it has animation also. like scenery
+in travel." — plus "remember to focus only on what task i gave you."
+
+**Recycle #8 first** (same pattern as #5–#7): the sandbox came back as the
+v2.3-era snapshot — tree pre-v2.4, `download/` truncated at v2-4, no
+`zip-archive/`. A `/tmp/my-project` snapshot (taken 03:50, after the
+v2.10-1 delivery) still held the full zip-archive including
+`pasyal-v2-10-1.zip`; the zip verified, the tree restored from it (rsync
+over the stale tree with node_modules/.git/.data/.nuxt-build-state
+preserved — package.json and package-lock.json identical, so no reinstall
+was needed), all 27 zips re-copied to `zip-archive/` and `download/`, and
+a stale dev server on port 3000 (PID 1141, boot-time start over the old
+tree) killed before the restore.
+
+### What changed (three components + one spec, nothing else)
+
+1. **`LandingMoney.server.vue` (D42) — the `money-settle` block removed.**
+   What it was: the chapter's third beat — a decorative "tangle" SVG (six
+   crossing debt arcs between five dots, the everyone-pays-everyone mess)
+   that appeared mid-scrub and collapsed, plus the settle-up card ("4
+   payments settle everything", the four §6.6 payments) with the turtle
+   holding a receipt. The mid-scrub vision review confirmed why it read
+   as purposeless: the tangle's arcs crossed ON TOP of the balances card
+   and the settle card, and the turtle clipped at the corner — a crowded,
+   confusing area (the owner's instinct). All of it is gone: the DOM
+   block, the `.money-settle*`/`.money-tangle*`/`.money-turtle` CSS, the
+   three keyframes, the settle-card short-viewport rules. The chapter now
+   ends on the balances ("Who's up, who's down" — the §6.6 nets that sum
+   to 0); the receipts keep their split lines. The intro's second
+   sentence ("Then the whole mess collapses into the fewest payments that
+   settle everything.") narrated the removed beat and is now "At the end
+   of the trip, everyone's balance is a plain number — what you're owed
+   or what you owe." The scrub track shrinks 240→200svh and the beats
+   re-map (receipts 33–57%, fills 57–67%) to fill the whole pin window —
+   no dead scroll after the content ends. The §6.6 simplified payments
+   themselves remain fully in the app's Balances tab (pages.spec.ts
+   asserts all four there — untouched).
+2. **`LandingScenery.server.vue` (D43, new) — the travel scenery
+   backdrop.** A fixed, full-viewport, `z-index: -1` layer inside the
+   story root (which gains `isolation: isolate` in LandingStory so the
+   layer sits behind every chapter yet above the app background, and can
+   never escape under the header or over the footer). One bottom-anchored
+   1600×900 SVG panorama (`width: max(100vw, 1600/900·100vh)` — the whole
+   scene stays exactly viewport-height from 320×568 phones to 1440×900
+   desktops; river and lake live in the x≈548–1052 safe zone that
+   survives every narrow crop): two mountain ranges whose feet
+   gradient-fade into the page (a solid fill showed a hard cutoff line in
+   the desktop vision review), a river (bed ribbon + animated flow dashes
+   via stroke-dashoffset — the same paint-only exception as the Plan
+   route) winding into a lake with two breathing ripple arcs, and a
+   two-band ocean (periodic paths, each translating exactly one period
+   per loop = seamless lapping at different speeds) along the bottom
+   edge — the turtle's home water. Ambient loops run only under
+   `prefers-reduced-motion: no-preference` (reduce gets a static
+   painting); under SDA the mountain ranges sink gently via
+   `animation-timeline: scroll(root)` — the landscape passes by as the
+   story travels. Every palette color stays within a few luminance steps
+   of the page background in BOTH schemes, verified numerically against
+   WCAG before writing (`scripts/check-scenery-contrast.mjs`: worst case
+   — muted-foreground text over the deepest shape — 5.0:1, so text
+   sitting anywhere on the scenery keeps AA; Lighthouse A11y stayed 100).
+   Zero JS (a server component), zero layout impact (fixed → CLS 0),
+   +0.28 KB gz CSS, +2.7 KB raw SVG.
+3. **Dark palettes actually apply now (D44, fallout fix).** While wiring
+   the scenery, its dark palette refused to apply — which exposed a
+   latent v2.10 bug: a LEADING `:global(html.dark) .x` in scoped CSS
+   compiles to a bare `html.dark` rule (the SFC compiler drops the
+   descendant selector — the exact toolchain behavior recorded as a D39
+   rejection note), and the direct light values on the element always
+   beat the inherited dark ones. So the landing's `--lnd-*` / `--tl-*`
+   dark palettes had never rendered: the map frame and islands kept their
+   light colors on the dark page (with light legend text on the pale
+   frame — unreadable), and the owes bars kept the light warm sand. The
+   three components this task touches (Story, Money, Scenery) now use
+   fully-global `:global(html.dark .x)` selectors — verified in the
+   running app: `--lnd-water` flips to oklch(0.31 0.04 225), the owes to
+   0.78, the scenery to its dark palette. LandingTurtle keeps the old
+   (visually harmless — its light and dark values are near-identical)
+   pattern; noted for whenever that file is next touched.
+
+Plus `tests/e2e/landing.spec.ts` — the v2.10-1 payment/tangle assertions
+become absence assertions (`.money-settle`/`.money-tangle` count 0), the
+balances contracts are asserted instead (five `.money-net` rows, the
++₱14,000/−₱8,500 endpoints, the "Who's up, who's down" heading), the
+scenery presence is asserted (`.lnd-scenery`, and under reduced motion
+that its ambient loops resolve to `animation-name: none`), and the no-JS
+turtle count drops 4→3 (peek/point/wave — Money's receipt pose is gone).
+
+### What was deliberately NOT touched
+
+The Plan/Map/Offline/Final chapters, `LandingTurtle.vue`,
+`useLandingMotion`, `tailwind.css`, `app.vue`, every app route beyond
+`/`, the SPEC, and all product logic. The H2 "Split fairly. Settled
+simply." keeps its product-claim reading (the §6.6 settle-up feature is
+demoed in the app's Balances tab; the landing chapter demonstrates the
+split + the tally). The hero's own waves stay (they belong to the turtle
+vignette and read as the turtle floating on the new ocean band).
+
+### Verification (all re-run on the final tree)
+
+lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 + 10
+env-gated (full suite, 3.6 min) · landing+smoke re-run green against the
+PRODUCTION build · build green · budget 171.7/300 KB (unchanged — the
+scenery is a server component, zero client JS) · landing CSS 4.56 KB gz
+minified (budget 8; 4.28 re-measured the same way on the v2.10-1
+components) · inline SVG 16.87 KB raw / 10 elements in the prerendered
+HTML (budget 25; was 18.2/11 — the tangle and one turtle render more
+than pay for the scenery) · page HTML 58.6 KB raw · Lighthouse mobile
+**97** / A11y **100** / BP 100 / LCP 1.21 s (v2.10-1: 95/100/1.22 — the
+trimmed Money chapter more than covers the scenery's paint). Vision
+review: hero + money mid/end + final + desktop 1440 + dark hero + dark
+money — scenery subtle in both schemes, the mountain fade clean, the
+settle block gone, all text readable. Palette verified numerically
+(scripts/check-scenery-contrast.mjs) before writing, then Lighthouse
+A11y 100 confirmed it in the built page.
+
+## Current state — v2.10-1 (owner-review fixes on the landing page, 2026-11-16)
+
+The owner reviewed v2.10 and asked for exactly four improvements (their
+words): the hero scroll-hint "seems off place or in far left in large
+screen" + "add a bottom margin… very close to Landing plan"; the plan
+cards should have "a consistent card height and width… make the time
+under the day"; the money "computation is not tally with the expenses,
+also the payments of debt… accurate as much" + "i see a skeleton
+component somethin, what is that for?"; and the map illustration "seem
+confusing, maybe use a person icon instead of dot? and maybe use a name?
+and the placing is seems off."
+
+**Recycle #7 first** (same pattern as #5/#6): the sandbox came back as
+the v2.3-era snapshot — tree pre-v2.4, `download/` truncated at v2-4,
+no `zip-archive/`, no `node_modules`. The `/tmp/my-project` snapshot
+still held the delivery history including `pasyal-v2-10.zip`; the zip
+verified (integrity + contents), the tree restored BYTE-EXACT from it
+(full-tree diff clean), all 25 zips re-copied into `zip-archive/` and
+`download/`, a stale `nuxt dev` server on port 3000 killed (PID 1144,
+the same boot-time pattern as recycle #6), `npm install` re-run, and
+the v2.10 baseline spot-checked before work started. The Playwright
+Chromium build was re-downloaded (the reinstalled playwright 1.65
+expected build 1254).
+
+### What changed (four files, nothing else)
+
+1. **`LandingHero.vue`** — `.hero-hint` centers horizontally at
+   ≥640 px (`left: 0; right: 0; margin-inline: auto; width: fit-content`
+   — no transform, so the bob keyframe keeps owning that channel); on
+   phones it stays bottom-left, clear of the turtle that owns the
+   bottom-right. `.hero` gains `margin-bottom: clamp(2rem, 7vh, 3.5rem)`
+   so the waterline no longer sits right against the Plan heading.
+2. **`LandingPlan.server.vue`** — the day cards become a fixed
+   day / activity / time stack ("Day 1" label / "Land in Tagbilaran" /
+   "2 PM"), `grid-auto-rows: 1fr` on the container and a capped
+   `max-width` so all three cards are one consistent height and width in
+   both the rest list and the scrubbed overlay (14.5 rem there).
+3. **`LandingMoney.server.vue` (D40)** — every receipt gains its §6.6
+   split line (₱4,800 each · all 5 / **₱1,500 each · no Ella** / ₱3,200
+   each · all 5 / ₱500 each · all 5 — the dinner's 4-way split is the
+   detail a naive 5-way tally misses); the settle-up card lists **all
+   four payments** with amounts and "Everyone lands on ₱0 — check the
+   math."; owes bars get a visible warm-sand fill (`--lnd-owe`, light +
+   dark via the shell's `:global(html.dark)` pattern), the track is
+   fainter (a `color-mix` layer over the plain `--muted` fallback), and
+   the fill beat starts at 46% cover. Short viewports: ≤740 px tightens
+   the stage rhythm; ≤600 px the chapter simply unpins (nothing can
+   clip; the track's view timeline still resolves so the beats play on
+   entry). Equal receipt heights via `grid-auto-rows: 1fr` (the dinner
+   split can wrap at 320 px).
+4. **`LandingMap.server.vue` (D41)** — the three member dots become
+   named person badges: a head+shoulders glyph in a white badge, a
+   colored live ring, and the member's name beside it (SVG `<text>`
+   with a white `paint-order` halo — decorative; the svg stays
+   aria-hidden and the same names are real DOM text in the legend). The
+   legend gains color chips through the previously-dead `.map-key` CSS
+   (names stay `--foreground`; only the dot carries the color — colored
+   text on the water frame failed Lighthouse color-contrast). Resting
+   placements repaired: Ben ends on the far island clear of the top
+   pin, Carla ends back ON the southern shore where her trail ends
+   (she previously rested in the water on her own trail line).
+
+Plus `tests/e2e/landing.spec.ts` — the 390×844 content spec now also
+asserts the split lines, all four payment rows, the plan time lines,
+and the marker/legend contracts (`.map-member` count = 3, chip texts).
+
+### What was deliberately NOT touched
+
+The Offline and Final CTA chapters, `useLandingMotion`, the turtle
+component, `tailwind.css`, every app route beyond `/`, the SPEC, and
+all product logic. The scrub/fallback architecture, the D35 session
+CTAs, and every existing assertion keep their v2.10 behavior.
+
+### Verification (all re-run on the final tree)
+
+lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 + 10
+env-gated (full suite, 3.5 min) · build green · budget 171.7/300 KB ·
+landing CSS 5.05 KB gz (budget 8; was 4.46) · inline SVG 18.2 KB raw /
+11 elements (budget 25; was 16.9) · page HTML 58.2 KB raw / 11.2 KB gz ·
+Lighthouse mobile 95 / **A11y 100** / BP 100 / LCP 1.22 s (the legend
+chip recolor was what restored A11y 100). New: a 6-viewport pinned-
+stage fit harness (`scripts/landing-fit.mjs` pattern — 320×568,
+360×640, 390×844, 414×896, 768×1024, 1440×900) proving the settle
+card, receipts, plan cards, and map frame all fit inside their pinned
+stages with zero horizontal overflow, plus the hint-centering and
+turtle-clearance checks. Vision review before/after: hero (hint far
+left → centered), money (skeleton pills → colored bars; 1 payment → 4
+payments; verified light AND dark), map (anonymous dots → named
+badges; placements), plan (baseline row → day/time stack).
+
+## Current state — v2.10 (immersive scroll-driven landing page, 2026-11-15)
+
+The owner's task, agreed in discussion first ("zero new dependencies;
+CSS scroll-driven animations on the compositor; a tiny IntersectionObserver
+fallback; everything inline SVG; sea turtle mascot — the tarsier idea
+discarded; SPEC §6.6 numbers on the money chapter; session CTAs
+untouched; budgets: 0 KB JS / ≤8 KB CSS / ≤25 KB SVG / Lighthouse mobile
+Perf ≥95 + A11y 100"), then built to that plan.
+
+**Recycle #6 first.** The sandbox came back as the v2.3-era snapshot
+again (`download/` truncated at v2-4, no `zip-archive/`, the tree
+pre-v2.4). A `/tmp` snapshot from an earlier generation still held the
+full delivery history — `pasyal-v2-9.zip` verified (integrity +
+contents) and the tree restored BYTE-EXACT from it (full-tree diff
+clean), all 24 zips re-archived into `zip-archive/`, a stale `nuxt dev`
+server on port 3000 killed (it was re-creating `.nuxt/` under the
+restore), Chromium reinstalled, and the v2.9 baseline gates re-confirmed
+green before any work started (206 vitest · build · 165.9 KB).
+
+### What was built
+
+`app/pages/index.vue` is now a thin page (SEO meta + `<LandingStory />`)
+over `app/components/landing/`:
+
+- **LandingStory** (client) — the shell: the shared reveal system, the
+  scene palette (light/dark CSS custom properties), and the chapter
+  composition. Its `useLandingMotion` composable is the ONLY landing
+  JS: in SDA browsers it returns immediately (CSS does everything);
+  under reduced motion it returns immediately (the base stylesheet is
+  already the complete static layout); otherwise it adds
+  `landing--reveal` to the root and reveals `.landing-reveal` elements
+  with ONE IntersectionObserver (each observed once, disconnect on
+  unmount). `?landing=static` forces that path for the e2e suite —
+  captured at **module-eval time**, because the prerendered route's
+  payload carries `/` and Nuxt's hydration strips the query before
+  components mount (measured; dev-server runs never see this).
+- **LandingHero / LandingFinalCta** (client) — the session-aware CTA
+  chapters, the D35 pattern verbatim (ClientOnly branch + the account
+  CTAs as the prerendered fallback; the H1's parent keeps the CTAs so
+  the smoke + session specs' scoping contract holds). The hero turtle
+  peeks in over quiet water arcs; the finale waves goodbye.
+- **LandingPlan / LandingMoney / LandingMap / LandingOffline** —
+  **Nuxt server components** (`.server.vue`): fully presentational, so
+  they ship ZERO client JavaScript (verified: no chapter code in any
+  client chunk; islands' scoped CSS still ships and applies). This is
+  what keeps the initial-route JS at 171.7 KB.
+- **LandingTurtle** — the mascot: one SVG, four pose groups
+  (peek / receipt / point / wave) expressed as head rotations, flipper
+  transforms and prop overlays (a receipt, a map pin), a 5.6 s blink,
+  pupils that drift with `animation-timeline: scroll(root)`, and a
+  light/dark palette. Plus a simplified mini swimmer inside the plan
+  chapter's SVG (kept mostly upright — a banked ellipse reads as a
+  leaf — with a light outline so it pops off the route line).
+
+The chapters' scrubbed mode is wrapped in `@supports
+(animation-timeline: view())` + `@media (prefers-reduced-motion:
+no-preference)`: tall tracks (200/240/210 svh) own named view timelines
+(`--plan/--money/--map`), sticky stages pin under the h-14 header, and
+the beats are tuned to the pin windows (route draw + swimmer + day
+cards; receipt drops + bar fills + the tangle→settle-up crossfade; pin
+drops + the three member-dot journeys — Carla wanders off-shore and
+back, her §4.3 persona). Everything animates transform/opacity, with
+one deliberate exception: the route line's `stroke-dashoffset`
+(paint, one small path, `pathLength="1"`-normalized). Outside the
+@supports block the SAME scene renders at rest — route drawn, cards
+listed, settle-up shown, dots parked — which is exactly what no-SDA
+browsers, reduced-motion users and no-JS crawlers get.
+
+The Money chapter uses the SPEC §6.6 acceptance data end to end: the
+four expenses (hotel ₱24,000 Ana · dinner ₱6,000 Ben · train ₱16,000
+Carla · taxi ₱2,500 Dan), the five net balances with bar lengths
+proportional to them (Ana 100% … Ella 61%), and the collapse into the
+canonical simplified settlement — "Dan pays Ana ₱5,500", the number
+the owner picked. The Works-anywhere chapter's copy is grounded in the
+delivered v2.9 audit ("Opens without signal. Queues what you add.
+Syncs the moment you're back.") and keeps the exact
+"Installable as an app (PWA) on Android and iPhone." sentence the
+smoke spec asserts.
+
+### What was tried and rejected (recorded for the next pass)
+
+- **`:global()` ancestor guards in scoped chapter CSS** — the
+  Vue-scoped + lightningcss pipeline compiled
+  `:global(.landing:not(.x)) .plan-track` into a single merged rule
+  with the descendant selectors STRIPPED (the sticky stage never
+  applied; caught by the e2e scrubbed-mode spec). Replaced by keeping
+  every scrubbed selector component-local; the old `chapter-static`
+  state machinery was then deleted entirely — the no-SDA static
+  layout comes from `@supports`, nothing else needed.
+- **`hydrate-on-visible` lazy hydration for the below-fold chapters** —
+  deferred the hydration into a late ~5 s task that re-rendered the
+  chapters and poisoned LCP (5.3–5.6 s, Perf 62–69). Server components
+  give the same "don't pay for below-fold chapters" benefit with no
+  late re-render.
+- **Opacity-faded hero entrances** — animating the LCP candidates
+  (title, turtle) from opacity 0 let a busy main thread delay the LCP
+  paint (bimodal 1.2 s / 5.5 s). The large elements now rise
+  transform-only; only the small elements fade.
+
+### Verification
+
+All gates re-run on the final tree: lint 0 · typecheck 0 · vitest 206
+(unchanged — the landing adds no unit-tested logic) · mocked Playwright
+**44 passed + 10 env-gated** (54 total: 8 new landing specs — 390×844
+full-chapter content + scrubbed-mode-active proof + session CTAs in
+hero AND finale; 360×640; 320 px no-overflow floor; reduced-motion
+static contract — stages unpinned, tracks collapsed, route fully
+drawn; no-JS prerender contract — every chapter + both CTA blocks in
+the server HTML; `?landing=static` reveal path) — and the landing +
+smoke specs re-run GREEN against the production build too (this is
+how the prerender query-strip bug was found). One baseline spec
+changed: smoke's "homepage renders the hero" now uses `.first()` on
+the "Create your account" assertion because the story carries the
+CTAs in two chapters. Budgets: initial-route JS **171.7/300 KB**
+(+5.8 over v2.9 — the island runtime + story/hero/finale/turtle/
+composable client code); landing CSS **4.46 KB gzipped** (budget 8;
+route-split into the index page's CSS, inlined on the prerendered
+HTML, nothing added to `entry.css` — Option A held, zero landing CSS
+on other routes); inline SVG **16.9 KB raw across 11 elements**
+(budget 25); page HTML 53.2 KB raw / 10.4 KB gz. Lighthouse mobile
+(9 runs on the final build): **median 95** — 89/90/90/93/95/95/96/97/97
+with LCP stable at ~1.2 s, A11y 100, Best Practices 100, TBT
+140–440 ms (the spread is service-worker/hydration task timing under
+artificial 4× CPU throttling on localhost; the static-output control
+run showed the same spread, and the v2.9 baseline measured 97–99 in
+this same sandbox — the honest cost of the story, inside the agreed
+budgets). A four-round vision-model design review loop at 390/360/dark
+fixed: the turtle's head clipped by its own viewBox (widened), pose
+flipper rotations that hid the wave/point/receipt poses, the swimmer's
+leaf-read (kept upright + outlined), bar color semantics (sign =
+color), pin/dot collisions on the map, the 320 px wave overflow, and
+the money tangle's reserved layout band (now an overlay).
+
+**Owner's real-device spot-check (this sandbox cannot cover it):**
+iPhone Safari 26 (the scrubbed path — Apple shipped SDA in Safari 26
+with view-timeline fixes still landing through 26.5/27.3), an iOS ≤ 18
+device (the IntersectionObserver fallback path), and a mid-range
+Android. `?landing=static` on any browser forces the fallback path for
+a quick look.
+
+## Current state — v2.9 (offline-mode audit report, 2026-11-15)
+
+Two things again: another sandbox recycle, then the owner's requested
+audit. **No application code changed in this delivery.**
+
+**Sandbox recycle #5.** Between the v2.8 delivery and this task the
+sandbox was recycled once more — the tree came back as the v2.3-era
+snapshot, `download/` had lost every zip after v2-4, and the
+`zip-archive/` copies were gone too. A `/tmp` snapshot still held the
+full delivery history including `pasyal-v2-8.zip`, so the tree was
+restored BYTE-EXACT from the owner's accepted v2-8 bytes (extract +
+full-tree diff — clean) rather than rebuilt from the record, and the
+zip history was re-copied into `download/` and `zip-archive/`. Two
+environment snags had to be fixed before the gates meant anything:
+the home snapshot's Playwright Chromium was the wrong build for the
+locked `@playwright/test` 1.65 (reinstalled), and a stale v2.3-era dev
+server was still bound to port 3000 serving pre-restore code — the
+first e2e attempt failed against it until it was killed and Playwright
+booted the real tree.
+
+**The owner's v2.9 task (D38):** scan the project's offline mode and
+report whether the app is still usable offline and what happens —
+delivered as [`offline-mode-state.md`](offline-mode-state.md) at the
+repo root (next to `project-state.md` / `style-guide.md`). The audit is
+a static read of the v2.8 tree (config, lib, composables, plugins,
+middleware, every page, the specs) with file-level evidence:
+
+- **The verdict:** usable offline as a read-mostly PWA with a
+  queued-write path. Works offline: the app shell (prerendered landing,
+  precached), the persisted session (signed-in users stay signed in),
+  banner-marked read snapshots for the trips list / trip / expenses /
+  itinerary / summary screens, queued expense create+edit and itinerary
+  add+edit (pending cards, sync exactly once on reconnect), and
+  previously viewed map tiles. Does not work offline — each with a
+  visible message, never a silent break: authentication, live location
+  of other members, place search, balances, destructive/atomic actions
+  (deletes, reorder, settle-up, trip create/join), and uncached tiles.
+- **Both transitions:** what happens the moment the connection drops
+  (badge, snapshot fallback, in-flight writes diverted into the queue)
+  and what happens on reconnect (auto-flush, queue-synced screen
+  reloads, realtime resume, the update banner).
+- Plus: a screen-by-screen catalog for every route, the storage/cache
+  inventory (localStorage keys, CacheStorage names and bounds), what
+  the unit / mocked-e2e / env-gated E2E-08 tests each prove, **nine
+  gaps and accepted limitations** (headline items: the auth pages show
+  generic failure copy offline; balances has no snapshot; unqueueable
+  deletes show raw error copy), a 5-minute manual offline walkthrough
+  against a production build, and five prioritized recommendations —
+  listed for the owner, NOT implemented (scope discipline: the task
+  asked for a report).
+
+Verification, all re-run on the restored tree and matching the v2.8
+baseline exactly: lint 0 · typecheck 0 · vitest 206 · mocked Playwright
+36 passed + 10 env-gated · `nuxt build` green · budget 165.9/300 KB.
+Diff vs the delivered `pasyal-v2-8.zip`: two files — the new report and
+this update.
 
 ## Current state — v2.8 (Google sign-up on the Sign Up page, 2026-11-14)
 
@@ -708,31 +1120,65 @@ date inputs verified fine after that; footer text cleared the tab bar
 | D35 | **The landing hero CTA follows the session (v2.7):** `index.vue` renders one "My Trips" button (→ `/trips`) when signed in and the two account CTAs ("Create your account" + "Sign in") when not, inside `<ClientOnly>` with the CTAs as the `#fallback` (the prerendered `/` keeps its CTAs for SEO/no-JS and the offline shell; the Supabase session lives in the browser, so the branch is client-only exactly like the app.vue header — no hydration mismatch). Replaces the "You are signed in — open your trips" hint paragraph | v2.7 (2026-11-14) | Owner request. The hint paragraph had been the logged-in affordance since M0; the owner wanted the direct action instead | Owner direction |
 | D36 | **Owner-flagged rebuild drift returned to the delivered bytes (v2.7.2):** `ItineraryItemForm.vue` and `settings.vue` — two of the files the v2.7 recycle-#3 restoration rebuilt from the decision record — are restored byte-exact from the delivered `pasyal-v2-6-3.zip` (recovered from a sandbox snapshot during that task; the `zip-archive/` copy made then was wiped by recycle #4). Nothing else in the v2.7 tree changed. Tool-only: `scripts/verify-install-card.mjs`'s wait selector widened to accept the lineage card's `add-to-home-button` testid — its assertions are behavior-based and unchanged | v2.7.2 (2026-11-14) | Owner review of v2.7: the two files "are not the task I gave you" — the rebuilds were functionally equivalent but textually different from the accepted v2-6-3 bytes, so the owner's diff showed out-of-scope churn. Lessons: after a lossy restore, check whether any delivered zip survives before rebuilding from the record; and a restoration must never touch more than the incident requires — unrequested textual drift is a delivery defect even when behavior matches | Owner direction |
 | D37 | **Google sign-up on the Sign Up page (v2.8):** `/auth/signup` gains the sign-in page's Google OAuth flow verbatim — `signInWithOAuth({ provider: 'google' })` with the redirect target carried through `/auth/callback?redirect=…` (FR-AUTH-07 invite survival), an "or" divider, the outline button with the inline Google glyph, label "Sign up with Google" (the page-appropriate variant of the sign-in page's "Continue with Google"), and mutual disable with the email form while either path is in flight. Deliberate non-changes: the tour is NOT queued on the Google path (an account's freshness is unknowable at click time — parity with the sign-in page; a fresh Google account can replay the tour from Settings), and the existing `on_auth_user_created` trigger already gives OAuth accounts the email-prefix display name (Google sends `full_name`, not `display_name`; editable on the Account page) — no migration | v2.8 (2026-11-14) | Owner request: "In 'Sign Up' Page, add also the sign up using 'Google' like in the 'Sign In' Page." The sign-in page's flow was copied rather than redesigned so the two entry points stay behaviorally identical (same provider, same callback contract, same error copy pattern) | Owner direction |
+| D38 | **Offline-mode audit report (v2.9):** [`offline-mode-state.md`](offline-mode-state.md) added at the repo root — the owner asked for a scan of the app's offline mode ("is the app still usable… and what will happen?"). The report answers with file-level evidence: the app is a read-mostly PWA with a queued-write path (works offline: shell, persisted session, banner-marked snapshots for trips list/trip/expenses/itinerary/summary, queued expense create+edit and itinerary add+edit with exactly-once sync, viewed tiles; does not work offline: auth, live location, place search, balances, destructive/atomic actions, uncached tiles — each with a visible message), plus both transition stories, a per-route catalog, the storage/cache inventory, the test-coverage map, nine gaps (auth pages lack offline-specific copy; balances unsnapshotted; raw error copy on unqueueable deletes; tiles capped at 300 entries; never-visited routes fall to the browser's offline page; no live-pin snapshot; the accepted queue crash edge; dev has no SW by design; `navigator.onLine` is a hint) and five recommendations. **Documentation only — no code, config, or test changes; the recommendations are listed for the owner, not implemented** | v2.9 (2026-11-15) | Owner request: "scan the project about its offline mode… create a detailed report of offline-mode-state.md." No zip name was given, so the delivery follows the naming sequence as `pasyal-v2-9.zip` | Owner direction |
+| D39 | **Immersive scroll-driven landing page (v2.10):** `app/pages/index.vue` becomes a thin page over `app/components/landing/*` — a six-chapter scroll story (Hero → Plan → Money → Map → Works anywhere → Final CTA) with one sea-turtle mascot (pose groups peek/receipt/point/wave, blink, scroll-timeline pupils; the tarsier idea from the owner's first draft was discarded at their direction). Zero new dependencies: scrubbed animation is pure CSS scroll-driven (`animation-timeline: view()` on compositor, `@supports`+`prefers-reduced-motion` gated, transform/opacity only — one deliberate `stroke-dashoffset` exception for the drawing route); pre-SDA browsers get the static base layout + a single-IntersectionObserver reveal (the ONLY landing JS, `useLandingMotion`); **the four presentational chapters are Nuxt server components** (`.server.vue`, zero client JS — Hero/Final CTA stay client for the D35 session CTAs, which are preserved verbatim); landing CSS stays route-split (Option A: nothing added to `entry.css`); all copy is DOM text, every SVG aria-hidden; Money uses the SPEC §6.6 dataset with the owner-picked settle-up line "Dan pays Ana ₱5,500"; the offline chapter's copy is grounded in the v2.9 audit. Rejected on evidence: `:global()` ancestor guards in scoped chapter CSS (the toolchain strips the descendant selectors — silent breakage), `hydrate-on-visible` lazy hydration (late re-render poisoned LCP), opacity-faded hero entrances (LCP-paint delay). `?landing=static` (captured at module-eval — the prerendered route's hydration strips query strings) forces the fallback path for testing/previews | v2.10 (2026-11-15) | Owner request + the agreed plan ("zero new dependencies… CSS scroll-driven animations… a tiny IntersectionObserver fallback… everything drawn as inline SVG… sea turtle… use the numbers from your SPEC example… record the decision in project-state.md as D38" — D38 was taken by the audit, so this is D39). Budgets held: JS 171.7/300 KB, landing CSS 4.46 KB gz (≤8), SVG 16.9 KB raw (≤25), Lighthouse mobile median 95 / A11y 100 | Owner direction |
+| D40 | **The Money chapter shows the complete §6.6 tally (v2.10-1):** every receipt carries its split line (₱4,800 each · all 5 / ₱1,500 each · **no Ella** / ₱3,200 each · all 5 / ₱500 each · all 5 — the dinner's 4-way split is what a naive 5-way tally misses, so the exception is spelled out on the receipt), and the settle-up card lists **all four** §6.6 payments (Ella→Ana 8,500 · Dan→Ana 5,500 · Dan→Carla 2,000 · Ben→Carla 4,000) with "Everyone lands on ₱0 — check the math." instead of one line + "plus 3 more" — every number cross-tallies (shares 10,000 / Ella 8,500 → nets summing 0 → payments zeroing everyone). The balance bars are re-read as data, not loading UI: owes get a visible warm-sand fill (`--lnd-owe`, light + dark), the track is fainter (`color-mix` over a plain `--muted` fallback for pre-color-mix engines), the fill beat starts at 46% cover (empty-pill window shortened), and equal receipt heights come from `grid-auto-rows: 1fr`. Short viewports: ≤740 px tightens the stage rhythm (verified to the pixel at 360×640); ≤600 px unpins the chapter entirely — nothing can clip, and real devices that short are almost all pre-SDA (the track's view timeline still resolves, so the beats play on entry rather than never). Rejected on evidence: a 2×2 payment grid on short viewports (the flex cells wrapped to three lines and overflowed at 320 px), `transform: scale()` compaction (visual-only — saves no layout height, so it cannot fix clipping) | v2.10-1 (2026-11-16) | Owner review of v2.10: "the computation is not tally with the expenses, also the payments of debt. i want it to be accurate as much, and also i see a skeleton component somethin, what is that for? and it seems offplace or no use?" — the "skeleton" was the balances bar row: gray-on-gray owes plus empty-until-scrubbed pills read exactly like shadcn Skeleton placeholders (confirmed by the before/after vision review) | Owner direction |
+| D41 | **Map members are named person badges (v2.10-1):** the three anonymous colored dots are replaced by person glyphs (head + shoulders) in white badges with a colored live ring and the member's name beside each — SVG `<text>` with a white `paint-order: stroke` halo, decorative only (the svg stays aria-hidden; the same names are real DOM text in the legend, which gains color chips through the previously-dead `.map-key` CSS — names keep `--foreground` with the member color only on the decorative dot, because colored text on the water frame failed Lighthouse color-contrast). Resting placements repaired: Ben ends on the far island clear of the top pin (his name previously collided with the pin's tip), Carla ends back ON the southern shore where her trail ends (she previously rested in the water on her own dashed trail, reading as path decoration), and Ana/Carla are spaced so their live rings no longer touch | v2.10-1 (2026-11-16) | Owner review of v2.10: "the illustration seem confusing, maybe use a person icon instead of dot ? and maybe use a name ? and the placing is seems off. can you improve it" | Owner direction |
+| D42 | **The Money chapter's settle-up beat is removed (v2.10-2):** the whole `money-settle` block goes — the decorative debt-tangle SVG (six crossing arcs that, mid-scrub, painted ACROSS the balances and settle cards), the "4 payments settle everything" card, and the receipt-pose turtle (the mascot remains in Hero/Map/Final; the `receipt` pose CSS stays in LandingTurtle for whenever a chapter wants it again). The chapter now ends on the §6.6 receipts + balances tally; the intro sentence that narrated the removed animation is rewritten; the scrub track shrinks 240→200svh with beats re-mapped to fill the pin window (receipts 33–57%, fills 57–67% — no dead scroll). The §6.6 simplified payments stay demoed where they live for real: the app's Balances tab (pages.spec asserts all four, untouched). Landing spec: absence assertions for `.money-settle`/`.money-tangle`, balances contracts instead | v2.10-2 (2026-11-16) | Owner review of v2.10-1: "can you check what is this 'money-settle' do ? i think its better to remove it." — the mid-scrub vision review confirmed the block read as a crowded, confusing extra (tangle arcs crossing the cards, clipped turtle) | Owner direction |
+| D43 | **Animated travel scenery behind the whole story (v2.10-2):** a new `LandingScenery.server.vue` — a fixed z-index -1 layer (the story root gains `isolation: isolate` so it stacks behind every chapter, above the app background, and never under the header / over the footer) carrying one bottom-anchored 1600×900 panorama: two gradient-faded mountain ranges, a river (animated flow dashes — the same paint-only stroke-dashoffset exception as the Plan route) into a lake with breathing ripples, and a two-band ocean lapping along the bottom edge (periodic paths, one period per seamless loop, different speeds). `width: max(100vw, 1600/900·100vh)` keeps the full scene viewport-height from 320×568 to 1440×900; river/lake sit in the x≈548–1052 crop-safe zone. All ambient loops live under `prefers-reduced-motion: no-preference` (reduce = a static painting); SDA engines additionally sink the mountains via `animation-timeline: scroll(root)`. Palette WCAG-verified numerically BEFORE writing (scripts/check-scenery-contrast.mjs — worst text-on-shape pairing 5.0:1, both schemes; Lighthouse A11y stayed 100). Zero client JS (server component), CLS 0, +0.28 KB gz CSS / +2.7 KB raw SVG — and the total SVG budget still FELL (16.87 vs 18.2 KB) because D42 removed more than the scenery adds | v2.10-2 (2026-11-16) | Owner request: "Can you add a additional background like, mountain, lake, river, ocean and it has animation also. like scenery in travel." | Owner direction |
+| D44 | **Landing dark palettes actually apply now (v2.10-2 fallout fix):** a LEADING `:global(html.dark) .x` in scoped CSS compiles to a bare `html.dark { vars }` rule — the SFC compiler drops the descendant selector (the exact toolchain behavior recorded as a D39 rejection note), and the direct light values defined on the element itself always beat the inherited dark ones. Consequence since v2.10: `--lnd-water/island/guide/dot*`, `--lnd-owe` and the scenery palette never flipped — dark mode showed a pale map frame with light legend text on it (unreadable) and light-mode islands. Fix: fully-global selectors `:global(html.dark .x)` in the three components the v2.10-2 task touches (Story, Money, Scenery) — specificity (0,2,1) beats the scoped light rules (0,2,0); verified computed-value flips in the running app. LandingTurtle deliberately keeps its old form this round (its light/dark values are visually near-identical — not part of the owner's two tasks); flagged for the next pass that touches that file | v2.10-2 (2026-11-16) | Found while wiring D43: the scenery's dark palette refused to apply, and the debug (`getComputedStyle` before/after) exposed the pre-existing breakage in the shell's palette | Engineering decision |
 
 ---
 
-## Test status at v2.8 delivery (all gates re-run on this tree)
+## Test status at v2.10-2 delivery (all gates re-run on this tree)
 
 | Layer | Result | Notes |
 |---|---|---|
-| Lint (NFR-MNT-03, hardening) | ✅ 0 findings | `npm run lint` — clean after v2.8 |
-| Type check (NFR-MNT-03, hardening) | ✅ 0 errors | `npm run typecheck` — clean after v2.8 |
-| CI (§13, hardening) | ✅ workflow added | `.github/workflows/ci.yml` — npm ci → lint → typecheck → test → build → check:budget on push/PR |
-| Unit + property + guardrail + perf (offline) | ✅ 206 pass | `npm test` — unchanged (v2.8 touches no unit-tested logic) |
-| pgTAP (local Postgres 18) | ⏳ carried from v2.2 | v2.8 has no SQL changes (the profile trigger already covers OAuth users); run `supabase db test` before the hosted push |
-| Playwright mocked | ✅ 36 pass (+10 env-gated skipped) | 46 total: pages 27, smoke 7 (incl. the hero-CTA session spec and the new Google sign-up spec), tour 2 — Playwright's Chromium reinstalled first (recycle #4 wiped `~/.cache`) |
-| `nuxt build` | ✅ | Warning-free after v2.8 |
-| Bundle budget (NFR-PERF-06) | ✅ 165.9 / 300 KB | Unchanged — one page-level template branch, zero new client dependencies |
-| Install card (D31/D32, v2-6-3 lineage bytes since v2.7.2) | ✅ re-proven | Real-browser UA matrix on /settings (`scripts/verify-install-card.mjs`, wait selector widened for the lineage testids — assertions unchanged): iPhone → 1 "Add to Home" + 0 "Install app" → Safari Share-steps sheet; Android → 1 "Install app" + 0 "Add to Home" → ⋮-menu sheet; desktop → 1 "Install app" → address-bar-icon sheet (with the owner's "screen with a down arrow, next to the bookmark star (Chrome and Edge)" step); standalone display-mode → "Pasyal is installed on this device." + zero buttons |
-| Owner-flagged files (D36) | ✅ byte-exact | `ItineraryItemForm.vue` and `settings.vue` diff-identical to the delivered `pasyal-v2-6-3.zip` |
-| Manifest link (D33/D34, restored) | ✅ re-verified | Dev: zero `<link rel="manifest">` on `/` and `/settings` (nothing fetches the 404 route); prod: link in the served HTML of `/`, `/settings`, `/auth/signin` + `GET /manifest.webmanifest` 200 `application/manifest+json` |
-| Hero CTA (D35, v2.7) | ✅ spec green | Smoke spec: signed-out → both account CTAs + zero "My Trips"; signed-in via the mocked UI → exactly one "My Trips" + zero CTAs; click → `/trips` (empty state renders) |
-| Google sign-up (D37, new) | ✅ spec green | New smoke spec: on `/auth/signup?redirect=/join/…` the email form stays primary + the divider and "Sign up with Google" render; clicking navigates to the Supabase authorize endpoint with `provider=google` and the invite redirect carried through `/auth/callback` |
-| Place search first try (v2.4, restored) | ✅ spec green | New pages spec: type "Nacpan" once — the listbox opens itself (watcher fires on results, no second focus), the option click fills name/address/coords |
-| Maps links (v2.4, restored) | ✅ assertion green | The itinerary "Open in maps" href is `https://maps.google.com/?q=…` (was the `geo:` URI) |
-| Lighthouse (NFR-PERF-01 lab + a11y) | ⏳ carried | iOS-pass numbers stand (Perf 95–98 / A11y 100 / BP 100); re-run `npm run perf:lighthouse` after the deploy |
+| Lint (NFR-MNT-03, hardening) | ✅ 0 findings | `npm run lint` — clean on the final v2.10-2 tree (Money rewrite, the new Scenery component, the Story isolation/dark edits, the updated landing spec) |
+| Type check (NFR-MNT-03, hardening) | ✅ 0 errors | `npm run typecheck` — clean (the scenery is a prop-less server component; no new client types) |
+| CI (§13, hardening) | ✅ workflow added | `.github/workflows/ci.yml` — unchanged |
+| Unit + property + guardrail + perf (offline) | ✅ 206 pass | `npx vitest run` — unchanged (the landing adds no unit-tested logic) |
+| pgTAP (local Postgres 18) | ⏳ carried from v2.2 | v2.10-2 has no SQL changes |
+| Playwright mocked | ✅ 44 pass (+10 env-gated skipped) | 54 total: pages 27, smoke 7, tour 2, landing 8 — the landing spec updated for v2.10-2 (settle/tangle absence, balances contracts incl. the five net rows and the ± endpoints, scenery presence + reduced-motion `animation-name: none`, turtle count ≥3); full suite green in 3.6 min; landing+smoke re-run green against the PRODUCTION build (15/15) |
+| `nuxt build` | ✅ | Green; the five `.server.vue` landing chapters (Scenery now among them) verified absent from every client chunk; the only build log note is the known no-`.env` `SUPABASE_KEY` warning |
+| Bundle budget (NFR-PERF-06) | ✅ 171.7 / 300 KB | Unchanged from v2.10 — the scenery is a server component (zero client JS) |
+| Landing budgets (D39/D42/D43) | ✅ all green | Landing CSS 4.56 KB gz minified (budget 8; the same measurement on the v2.10-1 components gives 4.28 — the scenery's +0.28); inline SVG 16.87 KB raw / 10 elements in the prerendered HTML (budget 25; was 18.2/11 — the removed tangle + one turtle render more than pay for the scenery); page HTML 58.6 KB raw |
+| Lighthouse mobile (NFR-PERF-01/UX-04) | ✅ 97 | v2.10-2 run on the final build: Perf **97** / A11y **100** / BP 100 / LCP 1.21 s (v2.10-1: 95/100/1.22 — the trimmed Money chapter more than covers the scenery's paint; the pre-verified palette kept A11y at 100) |
+| Landing page (D39, v2.10-2 pass) | ✅ specs + visual pass | 8 e2e specs green (dev + prod); vision review of the two changes: hero/plan/money-mid/money-end/final + desktop 1440 (mountain fade) + dark hero + dark money — scenery subtle in both schemes, the settle block gone, no overflow, all text readable; scenery palette additionally verified numerically before writing (scripts/check-scenery-contrast.mjs — worst text-on-shape pairing 5.0:1) |
+| Dark mode (D44) | ✅ computed-value verified | `--lnd-water` → oklch(0.31 0.04 225), `--lnd-owe` → 0.78, `--scn-far` → 0.232 with `html.dark` set — the palettes now actually flip (they silently hadn't since v2.10); map frame + islands + owes bars + scenery all render dark in the vision review |
+| Install card (D31/D32) / Manifest link (D33/D34) / Hero CTA (D35) / Place search (v2.4) | ✅ carried | Untouched by v2.10-2; the smoke/pages suites that cover them re-ran green in the full pass |
 | E2E-08 (M5 exit, carried) | ⏳ env-gated | Needs the hosted project |
-| Real-device pass | ⏳ manual | Checklist: the Account page without the User ID row, the consent sheet over the map on a phone (D30), the single install button per platform (D32), the address-bar install icon on desktop Chrome/Edge (D33), the landing hero showing "My Trips" when signed in and the two CTAs when signed out (v2.7), and — new for v2.8 — the "Sign up with Google" button on the Sign Up page starting Google's consent screen |
+| Real-device pass | ⏳ manual | Checklist: the landing on iPhone Safari 26 / an iOS ≤ 18 device / a mid-range Android — eyeball the two v2.10-2 changes (the Money chapter ending on the balances with no payments card; the scenery animating — waves lapping, river flowing, mountains sinking on scroll — and static under reduced motion), then the carried v2.10-1/v2.10 items |
+
+**To run the full local verification:** `npm run lint && npm run typecheck &&
+npm test && npm run build && npm run check:budget && npm run perf:lighthouse`
+(plus `supabase db test` for pgTAP and `npm run test:e2e` for Playwright).
+Against the deployed site: `E2E_BASE_URL=https://pasyal.vercel.app npm run
+perf:lighthouse`.
+
+---
+
+## Test status at v2.10-1 delivery (all gates re-run on this tree)
+
+| Layer | Result | Notes |
+|---|---|---|
+| Lint (NFR-MNT-03, hardening) | ✅ 0 findings | `npm run lint` — clean on the final v2.10-1 tree (four landing components + the extended landing spec) |
+| Type check (NFR-MNT-03, hardening) | ✅ 0 errors | `npm run typecheck` — clean (unchanged component shapes; server-component islands type-check as before) |
+| CI (§13, hardening) | ✅ workflow added | `.github/workflows/ci.yml` — npm ci → lint → typecheck → test → build → check:budget on push/PR (unchanged) |
+| Unit + property + guardrail + perf (offline) | ✅ 206 pass | `npm test` — unchanged (the landing adds no unit-tested logic; all 206 re-run green) |
+| pgTAP (local Postgres 18) | ⏳ carried from v2.2 | v2.10 has no SQL changes; run `supabase db test` before the hosted push |
+| Playwright mocked | ✅ 44 pass (+10 env-gated skipped) | 54 total: pages 27, smoke 7, tour 2, landing 8 — the 390×844 content spec extended with the v2.10-1 contracts (split lines incl. "no Ella", all four payment rows, plan time lines, `.map-member` count, legend chip texts); full suite green, landing+smoke also re-run green against the PRODUCTION build |
+| `nuxt build` | ✅ | Green; the four `.server.vue` chapters verified absent from every client chunk; the only build log note is the known no-`.env` `SUPABASE_KEY` warning |
+| Bundle budget (NFR-PERF-06) | ✅ 171.7 / 300 KB | +5.8 KB over v2.9 (island runtime + the client-side story/hero/finale/turtle/composable); check:budget green |
+| Landing budgets (D39/D40/D41) | ✅ all green | Landing CSS 5.05 KB gzipped (budget 8; 4.46 at v2.10 — the fix round's rules; still route-split, zero landing CSS in `entry.css`); inline SVG 18.2 KB raw / 11 elements (budget 25; person badges + name labels); page HTML 58.2 KB raw / 11.2 KB gz |
+| Lighthouse mobile (NFR-PERF-01/UX-04) | ✅ 95 | v2.10-1 run on the final build: Perf 95 / A11y **100** / BP 100 / LCP 1.22 s (the legend-chip recolor — colored text on the water frame failed color-contrast at 95 — was the fix back to 100). v2.10 reference: median 95 over 9 runs (89–97), same LCP band |
+| Landing page (D39, v2.10-1 pass) | ✅ specs + visual pass | 8 e2e specs green (dev + prod); v2.10-1: before/after vision review of all four fixes (hero hint, plan cards, money rest+mid+dark, map light+dark) and a new 6-viewport pinned-stage fit harness (320×568 / 360×640 / 390×844 / 414×896 / 768×1024 / 1440×900 — settle card, receipts, plan cards, map frame all inside their stages, zero horizontal overflow, hint centered ≥640 px and clear of the turtle); real-device Safari 26 / iOS ≤ 18 / Android spot-check listed for the owner |
+| Install card (D31/D32, v2-6-3 lineage bytes since v2.7.2) | ✅ carried | Untouched by v2.10 (settings page unchanged); re-verify on the next pass that touches it |
+| Manifest link (D33/D34) | ✅ carried | `nuxt.config.ts` untouched by v2.10; behavior unchanged |
+| Hero CTA (D35, v2.7) | ✅ spec green | Preserved verbatim in the new hero AND extended to the finale (both tested signed-out and signed-in); the smoke assertion updated to `.first()` because the story carries the CTAs in two chapters |
+| Place search first try + maps links (v2.4) | ✅ carried | Untouched by v2.10 (pages.spec untouched); assertion counts unchanged in the run |
+| E2E-08 (M5 exit, carried) | ⏳ env-gated | Needs the hosted project |
+| Real-device pass | ⏳ manual | Checklist: the landing story on iPhone Safari 26 (scrubbed chapters pin and scrub; the turtle blinks and its pupils drift) and on an iOS ≤ 18 device (the static fallback: every chapter readable, nothing pinned) plus a mid-range Android — eyeball the four v2.10-1 fixes there (hint placement, consistent day cards, the money tally, the named map badges); then the Account page without the User ID row, the consent sheet over the map on a phone (D30), the single install button per platform (D32), the address-bar install icon on desktop Chrome/Edge (D33), the hero/finale CTAs following the session (v2.7/v2.10), and the "Sign up with Google" button on the Sign Up page starting Google's consent screen (v2.8) |
 
 **To run the full local verification:** `npm run lint && npm run typecheck &&
 npm test && npm run build && npm run check:budget && npm run perf:lighthouse`
@@ -751,24 +1197,24 @@ Later the same day: the **post-review hotfix** landed (D24 grants
 migration, auth error surfacing, NUXT_B3011 fix) — review it alongside
 M6 + hardening before M7.
 
-1. **Deploy v2.8 (owner):** this tree is the v2.7.2 behavior plus the
-   Google sign-up button (D37) — one code file and its smoke spec.
-   No migration is needed (no SQL changed; the profile trigger already
-   covers OAuth accounts), and no Supabase dashboard change either —
-   the sign-up page uses the same Google provider the sign-in page
-   already uses. After deploying, check: "Sign up with Google" on
-   `/auth/signup` (starts Google's consent screen, returns to the app
-   signed in — the display name falls back to the email prefix and is
-   editable on the Account page); the landing page signed in (one "My
-   Trips" button → Trips page) and signed out (both account CTAs); the
-   install card on Android (one "Install app" → Chrome's native
-   dialog) and iPhone (one "Add to Home" → the Share-steps sheet); the
-   address-bar install icon on desktop Chrome/Edge. To see the tour as
-   an existing account: Settings → "Show the tour again" (it creates a
-   real "My First Trip" practice trip — delete it afterwards if only
-   previewing).
+1. **Deploy v2.10 (owner):** the landing page is now the six-chapter
+   scroll story (D39) — no migration, no dashboard change, nothing to
+   configure (the Google sign-up button and offline audit from v2.9 ride
+   along). After deploying, check on a phone: scroll the landing — the
+   route draws itself and the day cards stack (Plan), the receipts drop
+   and the debts collapse into "Dan pays Ana ₱5,500" (Money), the pins
+   and member dots move (Map), the turtle blinks and watches your scroll
+   throughout; check an iPhone on iOS ≤ 18 too — the chapters read as a
+   plain stacked page there (the fallback), all content visible; with
+   Reduce Motion on, the same static layout shows on every device. Then
+   the standing checks: "Sign up with Google" on `/auth/signup`; the
+   landing signed in (one "My Trips" button → Trips page — now in BOTH
+   the hero and the finale) and signed out (both account CTAs); the
+   install card on Android and iPhone; the address-bar install icon on
+   desktop Chrome/Edge. Offline behavior follows `offline-mode-state.md`
+   §8 (production build only — dev serves no service worker).
 2. **Review the M6 + hardening + hotfix + iOS-pass + v2.2 + v2.3 +
-   v2.6.x + v2.7.x + v2.8 delivery**: the summary/export/activity screens, the
+   v2.6.x + v2.7.x + v2.8 + v2.9 + v2.10 delivery**: the summary/export/activity screens, the
    CI workflow, the lint/type cleanup, the hardening bug fixes (D23),
    the hotfix (D24) — the iOS UI pass (`style-guide.md`, the restyled
    screens, decisions D25–D27) — v2.2 (the tour, decisions D28/D29) —
