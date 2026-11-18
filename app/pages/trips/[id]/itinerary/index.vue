@@ -9,6 +9,12 @@
  * Writes are disabled on archived trips (BR-03) — the UI hides the
  * controls and the database refuses them anyway.
  *
+ * v2.10-3 (D45): the item card shows one line per fact, in the owner's
+ * order — Title, Time, Location, Description, Open booking, Open in
+ * Maps, Edited by — and every info line clamps at 3 lines
+ * (`break-words line-clamp-3`), so a pasted essay or long place name
+ * can no longer stretch a card into a wall of text.
+ *
  * M5 (FR-PWA-03/04): offline loads fall back to the last snapshot (marked
  * "possibly outdated"); add/edit item while offline is queued and shows
  * instantly as a pending item (§10.2). Destructive and atomic actions
@@ -284,7 +290,9 @@ useRealtimeTables(
               {{ items.indexOf(item) + 1 }}
             </span>
             <div class="min-w-0 flex-1">
-              <p class="font-medium">
+              <!-- v2.10-3 (D45): one line per fact, owner's order. -->
+              <!-- 1 · Title -->
+              <p class="font-medium leading-snug break-words line-clamp-3">
                 <span aria-hidden="true">{{ categoryIcon(item.category) }}</span>
                 {{ item.title }}
                 <Badge
@@ -294,33 +302,55 @@ useRealtimeTables(
                 >
                   Pending sync
                 </Badge>
-                <a
-                  v-if="item.external_url"
-                  :href="item.external_url"
-                  target="_blank"
-                  rel="noopener"
-                  class="text-primary ml-1 text-xs underline"
-                  >booking link</a
-                >
               </p>
-              <p v-if="item.description" class="text-muted-foreground text-sm">{{ item.description }}</p>
-              <p class="text-muted-foreground mt-0.5 text-xs">
-                <span v-if="formatTimeRange(item.start_time, item.end_time)">
-                  {{ formatTimeRange(item.start_time, item.end_time) }} ·
-                </span>
-                <span v-if="item.place_name">📍 {{ item.place_name }}</span>
-                <a
-                  v-if="mapsLink(item)"
-                  :href="mapsLink(item)"
-                  class="text-primary ml-2 underline"
-                  target="_blank"
-                  rel="noopener"
-                  >Open in maps</a
-                >
+              <!-- 2 · Time -->
+              <p
+                v-if="formatTimeRange(item.start_time, item.end_time)"
+                class="text-muted-foreground mt-1 break-words text-xs line-clamp-3"
+              >
+                <span aria-hidden="true">🕒</span>
+                {{ formatTimeRange(item.start_time, item.end_time) }}
               </p>
+              <!-- 3 · Location -->
+              <p
+                v-if="item.place_name"
+                class="text-muted-foreground mt-0.5 break-words text-xs line-clamp-3"
+              >
+                <span aria-hidden="true">📍</span> {{ item.place_name }}
+              </p>
+              <!-- 4 · Description -->
+              <p
+                v-if="item.description"
+                class="text-muted-foreground mt-1 break-words text-sm leading-snug line-clamp-3"
+              >
+                {{ item.description }}
+              </p>
+              <!-- 5 · Open booking (FR-ITN-11) -->
+              <a
+                v-if="item.external_url"
+                :href="item.external_url"
+                target="_blank"
+                rel="noopener"
+                class="text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 mt-1.5 flex w-fit max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium"
+              >
+                <span aria-hidden="true">🎟️</span>
+                <span class="truncate">Open booking</span>
+              </a>
+              <!-- 6 · Open in Maps (FR-ITN-09) -->
+              <a
+                v-if="mapsLink(item)"
+                :href="mapsLink(item)"
+                target="_blank"
+                rel="noopener"
+                class="text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 mt-1.5 flex w-fit max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium"
+              >
+                <span aria-hidden="true">🗺️</span>
+                <span class="truncate">Open in Maps</span>
+              </a>
+              <!-- 7 · Edited by (FR-ITN-06) -->
               <p
                 v-if="item.updated_by_name"
-                class="text-muted-foreground/80 mt-0.5 text-[11px]"
+                class="text-muted-foreground/80 mt-2 break-words text-[11px] line-clamp-3"
                 title="FR-ITN-06"
               >
                 edited by {{ item.updated_by_name }}

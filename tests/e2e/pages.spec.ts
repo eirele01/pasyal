@@ -567,19 +567,21 @@ test('the itinerary shows days, ordered items, edited-by and maps links (UI-10, 
 
   // Ordered items with time range, place, category icon (FR-ITN-02).
   await expect(page.getByText('Flight to Puerto Princesa')).toBeVisible()
-  await expect(page.getByText('09:00 – 14:00 · 📍 Puerto Princesa Airport')).toBeVisible()
+  // v2.10-3 (D45): Time and Location are separate card rows now.
+  await expect(page.getByText('09:00 – 14:00')).toBeVisible()
+  await expect(page.getByText('📍 Puerto Princesa Airport')).toBeVisible()
   await expect(page.getByText('🚗 Flight to Puerto Princesa').first()).toBeVisible()
 
-  // "Open in maps" deep link (FR-ITN-09) and booking link (FR-ITN-11).
+  // "Open in Maps" deep link (FR-ITN-09) and booking link (FR-ITN-11).
   // v2.4 fix (restored in v2.6.1): the anchor must bind the universal web
   // URL, not the geo: URI that throws "scheme does not have a registered
   // handler" in browsers without an OS map handler.
-  const mapsLink = page.getByRole('link', { name: 'Open in maps' }).first()
+  const mapsLink = page.getByRole('link', { name: 'Open in Maps' }).first()
   await expect(mapsLink).toHaveAttribute(
     'href',
     /^https:\/\/maps\.google\.com\/\?q=9\.7425,118\.7588$/,
   )
-  await expect(page.getByRole('link', { name: 'booking link' })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'Open booking' })).toHaveAttribute(
     'href',
     'https://booking.example/tour-a',
   )
@@ -587,10 +589,40 @@ test('the itinerary shows days, ordered items, edited-by and maps links (UI-10, 
   // "edited by" indicator (FR-ITN-06).
   await expect(page.getByText('edited by Ben Editor')).toBeVisible()
 
+  // v2.10-3 (D45): the card reads Title → Time → Location → Description →
+  // Open booking → Open in Maps → Edited by, one line per fact, every
+  // info line clamped at 3 lines. The flight card carries the first four
+  // rows, the hopping card the last three (no mock card has all seven).
+  const flightCard = page.locator('[data-item-title="Flight to Puerto Princesa"]')
+  const flightText = await flightCard.innerText()
+  const flightRows = [
+    'Flight to Puerto Princesa',
+    '09:00 – 14:00',
+    'Puerto Princesa Airport',
+    'PPS → El Nido van',
+  ]
+  for (const row of flightRows) expect(flightText).toContain(row)
+  const flightPos = flightRows.map((row) => flightText.indexOf(row))
+  expect(flightPos).toEqual([...flightPos].sort((a, b) => a - b))
+  await expect(flightCard.locator('p.line-clamp-3')).toHaveCount(4) // title · time · location · description
+
+  const hoppingCard = page.locator('[data-item-title="Island hopping Tour A"]')
+  const hoppingText = await hoppingCard.innerText()
+  const hoppingRows = [
+    'Island hopping Tour A',
+    'Bacuit Bay',
+    'Open booking',
+    'Open in Maps',
+    'edited by Ben Editor',
+  ]
+  for (const row of hoppingRows) expect(hoppingText).toContain(row)
+  const hoppingPos = hoppingRows.map((row) => hoppingText.indexOf(row))
+  expect(hoppingPos).toEqual([...hoppingPos].sort((a, b) => a - b))
+
   // Unlocated items are allowed and produce no maps link (FR-ITN-02).
   await expect(page.getByText('Beach chill (no spot)')).toBeVisible()
   await expect(page.getByText('Nacpan beach day')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Open in maps' })).toHaveCount(3)
+  await expect(page.getByRole('link', { name: 'Open in Maps' })).toHaveCount(3)
 
   // Reorder + edit + delete controls exist for every item (FR-ITN-04).
   await expect(page.getByRole('button', { name: 'Move Flight to Puerto Princesa up' })).toBeVisible()

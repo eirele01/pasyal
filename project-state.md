@@ -6,7 +6,7 @@ itinerary and live location). Source of truth for requirements:
 substitute. This file is updated at the end of every milestone and read
 before starting the next one.
 
-Last updated: **2026-11-16 — v2.10-2 delivered: two owner-requested changes on the v2.10-1 landing — (1) the Money chapter's `money-settle` block is REMOVED (the tangle-to-payments beat — the decorative everyone-pays-everyone SVG that crossed the cards mid-scrub, the "4 payments settle everything" card, and the receipt-pose turtle): the chapter now ends on the §6.6 receipts + balances tally, the intro copy no longer narrates the removed beat, and the scrub track is re-tuned (240→200svh, beats filling the whole pin window — no dead scroll); (2) a new animated travel-scenery backdrop (`LandingScenery.server.vue`): distant mountain ranges, a river flowing into a lake, and a two-band ocean lapping along the bottom edge behind the whole story — ambient CSS loops (wave drift, river flow dashes, lake ripples, SDA mountain parallax) all gated by `prefers-reduced-motion`, palette WCAG-verified in both schemes (worst text-on-scenery pairing 5.0:1). Found while wiring it: the landing's dark palettes had NEVER applied (a leading `:global(html.dark) .x` compiles to a bare `html.dark` rule — the known D39 caveat — losing to the direct light values); fixed with fully-global selectors in the three components this task touches. Gates: lint 0 · typecheck 0 · vitest 206 · Playwright 44 + 10 env-gated · build green · budget 171.7/300 KB · landing CSS 4.56 KB gz (budget 8) · SVG 16.87 KB raw (budget 25) · Lighthouse 97 / A11y 100 / BP 100 / LCP 1.21 s · vision review light+dark. NOTE — sandbox recycle #8 hit before this task (the v2.3-era snapshot again): a `/tmp/my-project` snapshot still held the full zip-archive including the delivered `pasyal-v2-10-1.zip`; the tree was restored from it (rsync over the stale tree, node_modules/.git/.data preserved), the archives re-copied, and a stale dev server on port 3000 killed. The owner deploys from here.**
+Last updated: **2026-11-18 — v2.10-3 delivered: one owner-requested change on the v2.10-2 tree — the Itinerary item card now shows one line per fact in the owner's exact order (Title → Time → Location → Description → Open booking → Open in Maps → Edited by; time and location were previously crammed into one meta line, and the booking link hung inline off the title), and every info line clamps at 3 lines (`break-words line-clamp-3` — long titles, place names and pasted descriptions can no longer stretch a card into a wall of text; proven behaviorally: a 6-line title renders at exactly 3 lines in a real browser). The two links are promoted from inline underlined text to compact outlined chips (🎟️ Open booking, 🗺️ Open in Maps — mobile-friendly tap targets, one per line, same primary token so both schemes stay WCAG-safe). Only `app/pages/trips/[id]/itinerary/index.vue` + its `pages.spec.ts` fallout changed (time·place assertion split, link names updated, new row-order + clamp-count contracts); `map.vue`'s own popup link deliberately untouched. Gates: lint 0 · typecheck 0 · vitest 206 · Playwright 44 + 10 env-gated · build green · budget 171.7/300 KB (CSS-class-only change) · vision review light+dark 390×844. NOTE — sandbox recycle #9 hit before this task (the v2.3-era tree snapshot again): restored byte-verified from the delivered `pasyal-v2-10-2.zip` (the stale tree had no extra files — diff empty after copy), node_modules intact, a stale dev server on port 3000 killed first, and the recycle-wiped Playwright Chromium reinstalled. The owner deploys from here.**
 
 ---
 
@@ -35,7 +35,80 @@ Last updated: **2026-11-16 — v2.10-2 delivered: two owner-requested changes on
 | **v2.10 — immersive scroll-driven landing page (2026-11-15, owner-requested)** | **`app/pages/index.vue` becomes a thin page over `app/components/landing/*`: Hero ("Group travel, sorted." + the D35 session CTAs + the turtle peeking in) → Plan (pinned stage; the dashed route draws itself, day cards stack, a mini turtle swims the route) → Money (§6.6 receipts drop in, balance bars fill, the debt tangle collapses into "Dan pays Ana ₱5,500") → Map (island mini-map, itinerary pins, member dots — the opt-in/only-while-open promise) → Works anywhere (grounded in the v2.9 audit; keeps the exact smoke-tested install line) → Final CTA ("Make your first trip.", session-aware like the hero). One sea-turtle mascot (D39): a single SVG with pose groups (peek/receipt/point/wave), time-based blink, scroll-timeline pupil drift, dark-mode palette. Zero new dependencies: the scrubbed animation is pure CSS `animation-timeline: view()` (compositor-only, wrapped in `@supports` + `prefers-reduced-motion: no-preference`); browsers without SDA get the static base layout + a ~1 KB IntersectionObserver reveal (`useLandingMotion`); the Plan/Money/Map/Offline chapters are Nuxt **server components** (`.server.vue` — zero client JS; Hero/Final CTA stay client for the session CTAs). All copy is DOM text; every SVG is aria-hidden; `content-visibility: auto` on the two simple chapters; reserved stage heights (CLS 0)** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated (8 new landing specs: 390×844 content+SDA+session, 360×640, 320 px overflow floor, reduced-motion static contract, no-JS prerender contract, ?landing=static reveal path) · landing+smoke specs also green against the production build · build green · budget 171.7/300 KB · landing CSS 4.46 KB gz / SVG 16.9 KB raw / Lighthouse mobile median 95 over 9 runs (89–97; A11y 100 · BP 100 · LCP ~1.2 s) — the v2.9 baseline measured 97–99 in the same sandbox (the landing's cost is the price of the story, kept within the owner's budgets)** |
 | **v2.10-1 — owner-review fixes on the landing page (2026-11-16)** | **Exactly four presentational fixes on the v2.10 story, nothing else: Hero — the scroll hint centers under the text column at ≥640 px (it was pinned to the far-left edge on wide screens; on phones it stays bottom-left where the turtle owns the bottom-right) and the hero gains `margin-bottom: clamp(2rem, 7vh, 3.5rem)` before Plan; Plan — the day cards restructure to a fixed day / activity / time stack (grid `1fr` rows, capped width — the owner's sketch) so all three cards share one height and width; Money (D40) — every receipt shows its §6.6 split ("₱4,800 each · all 5"; dinner "₱1,500 each · no Ella"), the settle-up card lists all four payments (Ella→Ana 8,500 · Dan→Ana 5,500 · Dan→Carla 2,000 · Ben→Carla 4,000, "Everyone lands on ₱0 — check the math."), the balance bars get visible warm-sand fills for owes (they read as loading skeletons before), plus short-viewport handling (≤740 px tighter rhythm; ≤600 px the chapter unpins instead of clipping); Map (D41) — members become named person badges (person glyph, live ring, name label; names also in the DOM legend with color chips) and the resting placements repaired. The Offline/Final chapters, `tailwind.css`, app logic, SPEC, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated (the landing content spec extended with the new contracts: split lines, all four payments, plan time lines, marker + legend assertions) · landing+smoke specs green against the production build · build green · budget 171.7/300 KB · landing CSS 5.05 KB gz (budget 8) · SVG 18.2 KB raw (budget 25) · Lighthouse mobile 95 / A11y 100 / BP 100 / LCP 1.22 s · new 6-viewport pinned-stage fit harness (320×568 → 1440×900) all green · before/after vision review (hero, money rest+mid+dark, map light+dark, plan)** |
 | **v2.10-2 — settle-up block removed + animated travel scenery (2026-11-16, owner-requested)** | **Exactly two changes: Money (D42) — the `money-settle` block (the decorative debt-tangle SVG + the "4 payments settle everything" card + the receipt-pose turtle) is removed at the owner's direction ("can you check what is this money-settle do? i think its better to remove it"); the chapter keeps the §6.6 receipts with their split lines and the balances tally, the intro sentence that narrated the tangle→payments beat is rewritten, and the scrub track is shortened 240→200svh with the beats re-mapped to fill the whole pin window; Scenery (D43) — a new `LandingScenery.server.vue` backdrop behind the whole story: two mountain ranges (gradient-faded feet), a river with an animated flow line winding into a lake with breathing ripples, and a two-band ocean lapping along the viewport bottom — ambient `prefers-reduced-motion`-gated loops + SDA `scroll(root)` mountain parallax, `isolation: isolate` on the story root for the z-index -1 layer, WCAG-verified palette both schemes. Fallout fix (D44): the landing's `:global(html.dark) .x` dark rules never applied (the compiler drops the descendant — the recorded D39 caveat); the three task-touched components now use fully-global `:global(html.dark .x)` selectors, so dark mode actually flips the map frame/islands, the owes bars, and the scenery. The Plan/Map/Offline/Final chapters, the turtle, `tailwind.css`, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated (landing spec updated: payments/tangle absence asserted, balances contracts added, scenery presence, turtle count 4→3) · landing+smoke specs green against the production build · build green · budget 171.7/300 KB · landing CSS 4.56 KB gz (budget 8) · SVG 16.87 KB raw (budget 25 — the tangle+turtle removal outweighs the scenery) · Lighthouse mobile 97 / A11y 100 / BP 100 / LCP 1.21 s · vision review (hero/plan/money/final light+dark, desktop fade) · recycle #8 restoration from `/tmp/my-project/zip-archive/pasyal-v2-10-1.zip`** |
+| **v2.10-3 — itinerary card: owner's row order + 3-line clamp (2026-11-18, owner-requested)** | **`app/pages/trips/[id]/itinerary/index.vue` (D45): the item card shows one line per fact in the owner's exact order — Title, Time (own row, 🕒), Location (own row, 📍), Description, Open booking, Open in Maps, Edited by — and every info line clamps at 3 lines (`break-words line-clamp-3`), so long titles/place names/pasted descriptions can no longer stretch a card into a wall of text. The two links promote from inline underlined text to compact outlined chips (🎟️ / 🗺️, one per line, mobile-friendly tap targets, same `primary` token both schemes). pages.spec.ts fallout only: the single time·place line assertion splits into two row assertions, link names follow the new labels, and two new contracts prove the row order (position check on both fixture cards) + the clamp class count. `map.vue`'s own popup link, the form, and every other route deliberately untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated · build green · budget 171.7/300 KB (CSS-class-only change, no JS delta) · real-browser clamp proof (6-line title renders at exactly 3 lines, `-webkit-line-clamp: 3`, 66/22 px) · vision review light+dark at 390×844 with a long-text fixture · recycle #9: tree restored byte-verified from the delivered `pasyal-v2-10-2.zip`, stale port-3000 dev server killed, Playwright Chromium reinstalled** |
 | M7 Demo and pilot readiness | Seed data, demo script, privacy pages, pilots | ⬜ Not started | SC-01 |
+
+---
+
+## Current state — v2.10-3 (itinerary card: owner's row order + 3-line clamp, 2026-11-18)
+
+The owner reviewed v2.10-2 and asked for one change (their words): "in
+Itinerary Page, let's improve the UI/UX of itinerary card, add a truncate
+and max clip of 3 lines for each line of information. Make the order by
+this: Title, Time, Location, Description, Open booking, Open in Maps,
+Edited by." — plus "remember to focus only on what task i gave you."
+
+**Recycle #9 first** (same class as #5–#8): the sandbox tree came back as
+the v2.3-era snapshot (project-state.md pre-v2.10, no
+`app/components/landing/`). The delivered `download/pasyal-v2-10-2.zip`
+was intact, so the tree was restored straight from it — a full diff
+against the extract came back empty after the copy (the stale tree had no
+extra files), `node_modules` untouched, a stale dev server on port 3000
+(PID 1150, boot-time start over the old tree) killed before the restore.
+The recycle also wiped the Playwright Chromium browsers (reinstalled
+before the e2e run — the same recovery as recycle #4).
+
+### What changed (one page + one spec, nothing else)
+
+1. **`app/pages/trips/[id]/itinerary/index.vue` (D45) — the item card
+   rebuilt around the owner's order.** Before: the title carried an
+   inline "booking link" crammed after the item name, the description
+   could grow without bound, and time + place + "Open in maps" shared one
+   meta line ("09:00 – 14:00 · 📍 Place") that wrapped unpredictably.
+   After — one line per fact, in the owner's exact order:
+   **Title** (category icon + name + the "Pending sync" badge, unchanged)
+   → **Time** (`🕒`, own row, only when a time is set) → **Location**
+   (`📍`, own row, only when set) → **Description** → **Open booking** →
+   **Open in Maps** → **Edited by**. Every info row gets
+   `break-words line-clamp-3`: hard 3-line ceiling with an ellipsis, and
+   long unbroken strings wrap instead of overflowing the card. Verified
+   behaviorally in a real browser with a 6-line title fixture: the row
+   renders at exactly 3 lines (clientHeight 66 px / 22 px line-height,
+   computed `-webkit-line-clamp: 3`), while the unclamped text is 6 lines
+   — the clamp is doing real work, not just present in the class list.
+   The two links promote from inline underlined text to compact outlined
+   chips (🎟️ Open booking, 🗺️ Open in Maps — `border-primary/30`,
+   `bg-primary/5`, `rounded-md`, comfortable mobile tap targets), one per
+   line in the owner's order; each keeps `target="_blank"
+   rel="noopener"`, and the maps chip still binds the universal web URL
+   (the v2.4/v2.6.1 fix). Spacing tuned after a vision review: `mt-1.5`
+   between the chips, `mt-2` before "edited by", so the bordered chips
+   never crowd their neighbours. Dark mode checked too (same `primary`
+   token — chips clearly visible, all text readable). Deliberately
+   unchanged: the numbered badge, the ↑↓✏🗑 actions, archived read-only
+   handling, the add/edit form, and `map.vue`'s own "Open in maps"
+   popup link (a different surface, not the itinerary card).
+2. **`tests/e2e/pages.spec.ts` (fallout only).** The single-line
+   time·place assertion ("09:00 – 14:00 · 📍 Puerto Princesa Airport")
+   splits into two row assertions; the link names follow the new labels
+   ("booking link" → "Open booking", "Open in maps" → "Open in Maps" —
+   the count assertion still proves 3 located items); and two new
+   contracts lock the change in: the row order is proven by text
+   position on both fixture cards (flight: title < time < location <
+   description; hopping: title < location < Open booking < Open in Maps <
+   edited by — no mock card carries all seven rows, but both subsets
+   together cover the whole order), and the flight card's clamp count
+   (`p.line-clamp-3` × 4: title, time, location, description). The
+   offline/pending-sync, tour, and form specs needed no changes.
+
+### Verification
+
+lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10
+env-gated · build green · budget 171.7/300 KB (a CSS-class-only change —
+no JS delta; every utility used is a Tailwind core class) · the
+real-browser clamp proof and light+dark vision review above (390×844,
+long-text fixture). Diff vs the v2-10-2 zip = the page, the spec, this
+file — nothing else.
 
 ---
 
