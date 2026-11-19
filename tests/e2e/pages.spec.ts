@@ -1158,6 +1158,141 @@ test('online-only itinerary actions explain themselves when offline instead of f
 })
 
 // ══════════════════════════════════════════════════════════════════════
+// v2.11 — offline trips list and balances (owner-reported, FR-PWA-03)
+// ══════════════════════════════════════════════════════════════════════
+
+test('the trips-list snapshot is warmed at app start, not only by the trips screen (v2.11)', async ({
+  page,
+}) => {
+  await m5SignIn(page, `/trips/${TRIP_ID}/expenses`)
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+
+  // Remove the list snapshot and RELOAD the current (expenses) page —
+  // /trips is never visited: only the app-start warm can restore it.
+  await page.evaluate(() => localStorage.removeItem('pasyal:snap:v1:expenses:__trips_list'))
+  await page.reload()
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible({ timeout: 15_000 })
+
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('pasyal:snap:v1:expenses:__trips_list')))
+    .toBeTruthy()
+  const warmed = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('pasyal:snap:v1:expenses:__trips_list') ?? '{"data":[]}'),
+  )
+  expect(Array.isArray(warmed.data)).toBe(true)
+  expect(warmed.data.some((r: { trip_id: string }) => r.trip_id === TRIP_ID)).toBe(true)
+
+  // The owner's exact offline encounter, now fixed: /trips offline shows
+  // the snapshot list under the honest banner (the banner used to sit in
+  // the v-else chain and suppress the list entirely).
+  await page.context().setOffline(true)
+  await expect(page.getByTestId('offline-badge')).toBeVisible()
+  await page.getByRole('link', { name: 'Trips' }).click()
+  await expect(page.getByTestId('stale-banner').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('stale-banner').first()).toContainText('as you last viewed them')
+  await expect(page.getByRole('link', { name: /Mock Trip/ })).toBeVisible()
+})
+
+test('offline /trips rebuilds the list from per-trip snapshots when the list snapshot is missing (v2.11)', async ({
+  page,
+}) => {
+  await m5SignIn(page, `/trips/${TRIP_ID}/expenses`)
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+
+  // The owner's report: offline with no trips-list snapshot — the device
+  // still holds the per-trip snapshot from the opened trip.
+  await page.evaluate(() => localStorage.removeItem('pasyal:snap:v1:expenses:__trips_list'))
+  await page.context().setOffline(true)
+  await expect(page.getByTestId('offline-badge')).toBeVisible()
+
+  // Client-side navigation (the /trips chunk is in the module map from
+  // the sign-in redirect; production uses the service worker).
+  await page.getByRole('link', { name: 'Trips' }).click()
+
+  // The rebuilt list shows the trip under the honest offline banner.
+  await expect(page.getByTestId('stale-banner').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('stale-banner').first()).toContainText(
+    "trips you've opened on this device",
+  )
+  await expect(page.getByRole('link', { name: /Mock Trip/ })).toBeVisible()
+  // The balance badge is not derivable offline — none is rendered.
+  await expect(page.getByText(/You owe|Owes you|All settled/)).toHaveCount(0)
+})
+
+test('the balances tab reads from its snapshot offline instead of a raw fetch error (v2.11, FR-PWA-03)', async ({
+  page,
+}) => {
+  await m5SignIn(page, `/trips/${TRIP_ID}/balances`)
+  await expect(page.getByText('Net balances')).toBeVisible()
+  await expect(page.getByText('+₱14,000.00')).toBeVisible()
+
+  // Pre-visit the itinerary tab online so its chunk is in the module map.
+  await page.getByRole('link', { name: 'Itinerary' }).click()
+  await expect(page.getByRole('heading', { name: 'Itinerary' })).toBeVisible()
+  await page.getByRole('link', { name: 'Balances' }).click()
+  await expect(page.getByText('Net balances')).toBeVisible()
+
+  await page.context().setOffline(true)
+  await expect(page.getByTestId('offline-badge')).toBeVisible()
+
+  await page.getByRole('link', { name: 'Itinerary' }).click()
+  await expect(page.getByTestId('stale-banner').first()).toBeVisible()
+  await page.getByRole('link', { name: 'Balances' }).click()
+
+  // Snapshot restore: the amber banner + the §6.6 numbers — and never a
+  // raw transport error.
+  await expect(page.getByTestId('stale-banner').first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('stale-banner').first()).toContainText('possibly outdated')
+  await expect(page.getByText('+₱14,000.00')).toBeVisible()
+  await expect(page.getByText(/TypeError|Failed to fetch/)).toHaveCount(0)
+})
+
+test('offline balances without a snapshot shows the friendly empty state, never a raw fetch error (v2.11)', async ({
+  page,
+}) => {
+  await m5SignIn(page, `/trips/${TRIP_ID}/balances`)
+  await expect(page.getByText('Net balances')).toBeVisible()
+
+  await page.getByRole('link', { name: 'Itinerary' }).click()
+  await expect(page.getByRole('heading', { name: 'Itinerary' })).toBeVisible()
+  await page.getByRole('link', { name: 'Balances' }).click()
+  await expect(page.getByText('Net balances')).toBeVisible()
+
+  await page.context().setOffline(true)
+  await expect(page.getByTestId('offline-badge')).toBeVisible()
+  // As if this device never viewed balances online.
+  await page.evaluate(
+    (id) => localStorage.removeItem(`pasyal:snap:v1:balances:${id}`),
+    TRIP_ID,
+  )
+
+  await page.getByRole('link', { name: 'Itinerary' }).click()
+  await page.getByRole('link', { name: 'Balances' }).click()
+
+  await expect(page.getByRole('alert').first()).toContainText("You're offline", { timeout: 10_000 })
+  await expect(page.getByText('Try again')).toBeVisible()
+  await expect(page.getByText(/TypeError|Failed to fetch/)).toHaveCount(0)
+})
+
+test('recording a payment offline is refused with the offline copy instead of a fetch error (v2.11)', async ({
+  page,
+}) => {
+  await m5SignIn(page, `/trips/${TRIP_ID}/balances`)
+  await expect(page.getByText('Net balances')).toBeVisible()
+
+  await page.context().setOffline(true)
+  await expect(page.getByTestId('offline-badge')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Record a payment' }).click()
+
+  await expect(page.getByRole('alert').first()).toContainText(
+    "You're offline — this action needs a connection",
+    { timeout: 10_000 },
+  )
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+// ══════════════════════════════════════════════════════════════════════
 // M6 — summary, export and activity screens (SPEC §5.11, UI-15)
 // ══════════════════════════════════════════════════════════════════════
 

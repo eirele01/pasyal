@@ -15,9 +15,28 @@
  *            EI-08 feature detection)
  * FR-SET-08  settlement amounts are positive integers (validated here and
  *            by the database check constraint)
+ *
+ * v2.11 (FR-PWA-03, owner-reported): balances gets the same offline
+ * contract as every other tab. Successful loads are snapshotted; offline
+ * (or a transport failure mid-load) restores the snapshot under the
+ * amber "possibly outdated" banner instead of surfacing a raw
+ * "TypeError: Failed to fetch"; with no snapshot the friendly
+ * OFFLINE_NO_SNAPSHOT empty state shows. Recording / confirming /
+ * deleting payments stays online-only by design (money writes are not
+ * queued — FR-PWA-04 scope) and is refused with the shared
+ * OFFLINE_BLOCKED_MESSAGE copy instead of a transport error.
  */
 import { parseAmountToMinor, minorToInputValue } from '~/lib/expenses'
 import { formatMoneyMinor, initialOf } from '~/lib/trips'
+import {
+  OFFLINE_BLOCKED_MESSAGE,
+  OFFLINE_NO_SNAPSHOT,
+  browserOffline,
+  isNetworkError,
+  readSnapshot,
+  saveSnapshot,
+  snapshotKey,
+} from '~/lib/offline'
 import {
   allSettled,
   settleUpShareText,
@@ -62,10 +81,45 @@ const balances = ref<BalanceRow[]>([])
 const settlements = ref<Settlement[]>([])
 const expenses = ref<ExpenseWithChildren[]>([])
 const loading = ref(true)
+const stale = ref(false)
+const loadError = ref('')
 const actionError = ref('')
 const actionNotice = ref('')
 
+/** The offline snapshot payload (v2.11): exactly what the screen renders. */
+interface BalancesSnapshot {
+  balances: BalanceRow[]
+  settlements: Settlement[]
+  expenses: ExpenseWithChildren[]
+}
+
+/**
+ * FR-PWA-03 restore for balances (v2.11): the last successfully loaded
+ * rows, marked stale so the banner can say "possibly outdated".
+ */
+function restoreBalancesSnapshot(): boolean {
+  const snap = readSnapshot<BalancesSnapshot>(
+    window.localStorage,
+    snapshotKey('balances', tripId),
+  )
+  if (!snap) return false
+  balances.value = snap.data.balances ?? []
+  settlements.value = snap.data.settlements ?? []
+  expenses.value = snap.data.expenses ?? []
+  stale.value = true
+  return true
+}
+
 async function loadAll() {
+  // FR-PWA-03 fast path (v2.11): offline → skip the doomed requests
+  // entirely (supabase-js would retry with backoff) and restore the
+  // snapshot, exactly like the expenses / itinerary tabs.
+  if (browserOffline()) {
+    if (!restoreBalancesSnapshot()) loadError.value = OFFLINE_NO_SNAPSHOT
+    loading.value = false
+    return
+  }
+
   const [balancesResult, settlementsResult, expensesResult] = await Promise.all([
     supabase.rpc('member_balances', { p_trip_id: tripId }),
     supabase
@@ -81,19 +135,58 @@ async function loadAll() {
       .order('expense_date', { ascending: false }),
   ])
 
-  if (balancesResult.error) {
-    actionError.value = balancesResult.error.message
-  } else {
-    balances.value = (balancesResult.data as BalanceRow[]) ?? []
+  // v2.11: a transport failure on ANY of the three loads (offline
+  // transition mid-flight, lie-fi) falls back to the snapshot — the raw
+  // "TypeError: Failed to fetch" never reaches the user.
+  const transportError = [balancesResult.error, settlementsResult.error, expensesResult.error].find(
+    (e) => e && isNetworkError(e.message),
+  )
+  if (transportError) {
+    if (!restoreBalancesSnapshot()) loadError.value = OFFLINE_NO_SNAPSHOT
+    loading.value = false
+    return
   }
+
+  if (balancesResult.error) {
+    loadError.value = 'Could not load balances. Please try again.'
+    loading.value = false
+    return
+  }
+
+  balances.value = (balancesResult.data as BalanceRow[]) ?? []
   settlements.value = settlementsResult.data ?? []
   expenses.value = (expensesResult.data as ExpenseWithChildren[]) ?? []
+  loadError.value = ''
+  stale.value = false
   loading.value = false
+
+  // FR-PWA-03 snapshot (v2.11): every successful load is persisted so the
+  // next offline open renders instead of erroring.
+  if (import.meta.client) {
+    saveSnapshot(window.localStorage, snapshotKey('balances', tripId), {
+      balances: balances.value,
+      settlements: settlements.value,
+      expenses: expenses.value,
+    } as BalancesSnapshot, Date.now())
+  }
+}
+
+/** Try-again entry (v2.11): re-run the load with the loading state back. */
+async function retryLoad() {
+  loading.value = true
+  loadError.value = ''
+  await loadAll()
 }
 
 onMounted(async () => {
   if (!trip.value) await load()
   await loadAll()
+})
+
+// v2.11: after the offline queue flushes (reconnect), synced expense
+// writes change these numbers — reload like the expenses / summary tabs.
+useQueueSynced(() => {
+  loadAll()
 })
 
 useRealtimeTables(
@@ -127,7 +220,17 @@ const recordTo = ref('')
 const recordAmountInput = ref('')
 const recording = ref(false)
 
+// v2.11: the shared online/offline state — settle-up actions are
+// online-only by design (atomic money writes, FR-PWA-04 scope note).
+const online = useOnline()
+
 function openRecord(fromMemberId?: string, toMemberId?: string, amountMinor?: number) {
+  // Online-only action: refuse offline with the shared copy instead of
+  // letting the form be filled and fail on submit (§10.2 — never silent).
+  if (!online.value) {
+    actionError.value = OFFLINE_BLOCKED_MESSAGE
+    return
+  }
   recordFrom.value = fromMemberId ?? myMemberId.value ?? ''
   recordTo.value = toMemberId ?? ''
   recordAmountInput.value =
@@ -145,6 +248,12 @@ const recordAmountMinor = computed(() =>
 
 
 async function recordSettlement() {
+  // v2.11: the connection can drop while the dialog is open — the same
+  // offline copy instead of a raw transport error.
+  if (!online.value) {
+    actionError.value = OFFLINE_BLOCKED_MESSAGE
+    return
+  }
   if (recordAmountMinor.value === null || recordAmountMinor.value <= 0) {
     actionError.value = 'Enter a positive amount (FR-SET-08).'
     return
@@ -183,6 +292,10 @@ function canConfirm(s: Settlement): boolean {
 }
 
 async function confirmSettlement(s: Settlement) {
+  if (!online.value) {
+    actionError.value = OFFLINE_BLOCKED_MESSAGE
+    return
+  }
   confirming.value = s.id
   const { error } = await supabase.rpc('confirm_settlement', { p_settlement_id: s.id })
   confirming.value = ''
@@ -206,6 +319,11 @@ function canDelete(s: Settlement): boolean {
 
 async function deleteSettlement() {
   if (!deleteTarget.value) return
+  if (!online.value) {
+    actionError.value = OFFLINE_BLOCKED_MESSAGE
+    deleteTarget.value = null
+    return
+  }
   deletingSettlement.value = true
   const { error } = await supabase.from('settlements').delete().eq('id', deleteTarget.value.id)
   deletingSettlement.value = false
@@ -307,6 +425,23 @@ const drillNetCheck = computed(() => {
     <p v-if="actionNotice" class="text-primary text-sm" role="status">{{ actionNotice }}</p>
 
     <div v-if="loading" class="text-muted-foreground py-12 text-center text-sm">Loading balances…</div>
+
+    <!-- Offline snapshot banner (FR-PWA-03: cached data is marked).
+         Standalone — the snapshot content below must still render. -->
+    <p
+      v-if="stale && !loadError"
+      class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+      role="status"
+      data-testid="stale-banner"
+    >
+      You're offline — showing balances as you last viewed them (possibly outdated). Recording
+      payments needs a connection.
+    </p>
+
+    <div v-if="loadError" class="grid gap-3 py-12 text-center">
+      <p class="text-destructive text-sm" role="alert">{{ loadError }}</p>
+      <div><Button variant="outline" @click="retryLoad">Try again</Button></div>
+    </div>
 
     <template v-else>
       <!-- ── Summary & export entry (UI-15, M6) ────────────────────── -->

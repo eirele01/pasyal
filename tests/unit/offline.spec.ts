@@ -15,6 +15,7 @@ import {
   mergeExpenseOverlays,
   mergeItemOverlays,
   queueSummary,
+  reconstructOfflineTripList,
   removeFromQueue,
   saveQueue,
   saveSnapshot,
@@ -26,7 +27,12 @@ import {
   type QueueEntry,
   type SaveExpenseParams,
 } from '../../app/lib/offline'
-import type { ExpenseWithChildren, ItemWithEditor } from '../../app/types/database.types'
+import type {
+  ExpenseWithChildren,
+  ItemWithEditor,
+  Trip,
+  TripMember,
+} from '../../app/types/database.types'
 
 // ── Fixtures ────────────────────────────────────────────────────────────
 
@@ -36,6 +42,12 @@ function fakeStorage(): OfflineStorage & { dump(): Record<string, string> } {
     getItem: (k) => map.get(k) ?? null,
     setItem: (k, v) => void map.set(k, v),
     removeItem: (k) => void map.delete(k),
+    // Web-Storage-style key iteration (real localStorage carries these;
+    // the reconstruction scans storage keys through them).
+    get length() {
+      return map.size
+    },
+    key: (i: number) => Array.from(map.keys())[i] ?? null,
     dump: () => Object.fromEntries(map),
   }
 }
@@ -242,6 +254,129 @@ describe('snapshots', () => {
   it('keys snapshots per kind and trip', () => {
     expect(snapshotKey('itinerary', TRIP)).not.toBe(snapshotKey('itinerary', OTHER_TRIP))
     expect(snapshotKey('trip', TRIP)).not.toBe(snapshotKey('expenses', TRIP))
+    // v2.11: the balances kind keys its own namespace.
+    expect(snapshotKey('balances', TRIP)).not.toBe(snapshotKey('expenses', TRIP))
+    expect(snapshotKey('balances', TRIP)).toBe('pasyal:snap:v1:balances:' + TRIP)
+  })
+})
+
+// ── Offline trips-index reconstruction (v2.11) ──────────────────────
+
+const ME = '00000000-0000-4000-8000-0000000000e1'
+
+function tripFixture(id: string, over: Partial<Trip> = {}): Trip {
+  return {
+    id,
+    name: `Trip ${id.slice(0, 4)}`,
+    start_date: '2026-03-01',
+    end_date: '2026-03-08',
+    base_currency: 'PHP',
+    owner_id: ME,
+    invite_code: 'invite',
+    status: 'active',
+    created_at: '2026-01-01T00:00:00Z',
+    ...over,
+  }
+}
+
+function memberFixture(
+  tripId: string,
+  userId: string | null,
+  role: TripMember['role'] = 'member',
+): TripMember {
+  return {
+    id: `member-${tripId.slice(0, 4)}-${userId?.slice(-2) ?? 'guest'}`,
+    trip_id: tripId,
+    user_id: userId,
+    display_name: 'Someone',
+    role,
+    sharing_enabled: false,
+    joined_at: '2026-01-01T00:00:00Z',
+  }
+}
+
+describe('reconstructOfflineTripList', () => {
+  it('rebuilds trips-index rows from the per-trip snapshots on the device', () => {
+    const storage = fakeStorage()
+    saveSnapshot(
+      storage,
+      snapshotKey('trip', TRIP),
+      {
+        trip: tripFixture(TRIP),
+        members: [memberFixture(TRIP, ME, 'owner'), memberFixture(TRIP, null, 'guest')],
+      },
+      1,
+    )
+
+    const rows = reconstructOfflineTripList(storage, ME)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      trip_id: TRIP,
+      name: `Trip ${TRIP.slice(0, 4)}`,
+      start_date: '2026-03-01',
+      end_date: '2026-03-08',
+      status: 'active',
+      base_currency: 'PHP',
+      my_role: 'owner',
+      member_count: 2,
+      // The caller's net balance is server-computed — not derivable.
+      my_net_minor: null,
+    })
+  })
+
+  it('sorts newest departure first and deduplicates by trip id', () => {
+    const storage = fakeStorage()
+    saveSnapshot(
+      storage,
+      snapshotKey('trip', TRIP),
+      { trip: tripFixture(TRIP, { start_date: '2026-01-01' }), members: [memberFixture(TRIP, ME)] },
+      1,
+    )
+    saveSnapshot(
+      storage,
+      snapshotKey('trip', OTHER_TRIP),
+      { trip: tripFixture(OTHER_TRIP, { start_date: '2026-05-01' }), members: [memberFixture(OTHER_TRIP, ME)] },
+      2,
+    )
+    // A stray near-miss key (trailing space, corrupt) must be ignored —
+    // snapshot keys are unique per trip, the by-id dedupe is defensive.
+    storage.setItem(`pasyal:snap:v1:trip:${TRIP} `, 'ignored-corrupt')
+
+    const rows = reconstructOfflineTripList(storage, ME)
+    expect(rows.map((r) => r.trip_id)).toEqual([OTHER_TRIP, TRIP])
+  })
+
+  it('never lists a trip where the caller has no membership row', () => {
+    const storage = fakeStorage()
+    saveSnapshot(
+      storage,
+      snapshotKey('trip', TRIP),
+      { trip: tripFixture(TRIP), members: [memberFixture(TRIP, 'someone-else')] },
+      1,
+    )
+    expect(reconstructOfflineTripList(storage, ME)).toEqual([])
+    expect(reconstructOfflineTripList(storage, null)).toEqual([])
+  })
+
+  it('ignores corrupt snapshots, unrelated keys and non-trip kinds', () => {
+    const storage = fakeStorage()
+    storage.setItem(snapshotKey('trip', TRIP), 'nope{') // corrupt
+    storage.setItem(snapshotKey('expenses', TRIP), 'nope{') // wrong kind
+    storage.setItem('pasyal:snap:v1:trip:not-a-uuid', 'nope{')
+    saveSnapshot(
+      storage,
+      snapshotKey('trip', OTHER_TRIP),
+      { trip: tripFixture(OTHER_TRIP), members: [memberFixture(OTHER_TRIP, ME)] },
+      1,
+    )
+
+    const rows = reconstructOfflineTripList(storage, ME)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.trip_id).toBe(OTHER_TRIP)
+  })
+
+  it('returns an empty list for empty storage', () => {
+    expect(reconstructOfflineTripList(fakeStorage(), ME)).toEqual([])
   })
 })
 

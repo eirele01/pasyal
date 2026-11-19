@@ -6,7 +6,7 @@ itinerary and live location). Source of truth for requirements:
 substitute. This file is updated at the end of every milestone and read
 before starting the next one.
 
-Last updated: **2026-11-18 — v2.10-4 delivered: one owner-requested change on the v2.10-3 tree — the Money chapter's settle-up beat is back: `LandingMoney.server.vue` is reverted to its v2.10-1 form (the "4 payments settle everything" card with all four §6.6 payments, the receipt-pose turtle, the narrating intro, the 240svh scrub track with the original beat map), minus exactly the one thing the owner quoted: the decorative money-tangle SVG (its markup, base rules, scrub overlay and keyframes) stays gone; the v2.10-2 D44 dark-mode selector fix is deliberately kept (reverting it would re-break the dark owes bars). Only `app/components/landing/LandingMoney.server.vue` + its `landing.spec.ts` fallout changed (payments + turtle contracts restored, tangle-absence and the v2.10-2 balances/scenery contracts kept). Gates: lint 0 · typecheck 0 · vitest 206 · Playwright 44 + 10 env-gated · build green · budget 171.7/300 KB (server component, no JS delta) · production-build vision check light+dark 390×844 (card + turtle present, no tangle, 240svh track measured, `--lnd-owe` dark flip intact). The owner deploys from here.**
+Last updated: **2026-11-19 — v2.11 delivered: the owner's two offline reports fixed. (1) The offline trips list — the root cause was a template-chain bug on `/trips` that had been there since M5: the stale banner sat inside the loading/error `v-else` chain, so an offline snapshot restore rendered the "You're offline" banner and NOTHING else — the list was suppressed even with a perfectly good snapshot in storage (the owner's words: "i cannot see the list of my trips. its show the offline warning that i am offline"). The banner is now standalone like the expenses/summary tabs, plus two hardening layers: with the list snapshot missing, the index is rebuilt from the per-trip snapshots already on the device (a new pure, unit-tested `reconstructOfflineTripList`), and `app.vue` warms the trips-list snapshot once per app start when online + signed in (deep-link-only sessions no longer go offline without it). (2) Balances offline (the owner's "TypeError: Failed to fetch" + "what do you think is the best flow or UX? I will go to your recommendation") — implemented recommendation (D47): the same offline contract as every other tab — successful loads snapshot `{balances, settlements, expenses}` under a new `balances` kind; offline / transport failures restore the snapshot under the amber "possibly outdated" banner instead of a raw fetch error; no snapshot → the friendly `OFFLINE_NO_SNAPSHOT` state + Try again; record/confirm/delete payments stay online-only by design and now refuse offline with the shared `OFFLINE_BLOCKED_MESSAGE` at the entry point (the dialog does not even open); balances reload after the offline queue flushes (`useQueueSynced`). Gates: lint 0 · typecheck 0 · vitest 211 (206+5) · Playwright 49 + 10 env-gated (44+5) · build green · budget 172.0/300 KB · a 15/15 production-build offline verification against the real service worker with aborted Supabase requests (trips list offline, rebuild, honest empty state, balances restore, friendly empty, offline record refusal, zero raw transport errors) · 390×844 screenshots pixel-verified (content + amber banner in both). The owner deploys from here.**
 
 ---
 
@@ -37,7 +37,134 @@ Last updated: **2026-11-18 — v2.10-4 delivered: one owner-requested change on 
 | **v2.10-2 — settle-up block removed + animated travel scenery (2026-11-16, owner-requested)** | **Exactly two changes: Money (D42) — the `money-settle` block (the decorative debt-tangle SVG + the "4 payments settle everything" card + the receipt-pose turtle) is removed at the owner's direction ("can you check what is this money-settle do? i think its better to remove it"); the chapter keeps the §6.6 receipts with their split lines and the balances tally, the intro sentence that narrated the tangle→payments beat is rewritten, and the scrub track is shortened 240→200svh with the beats re-mapped to fill the whole pin window; Scenery (D43) — a new `LandingScenery.server.vue` backdrop behind the whole story: two mountain ranges (gradient-faded feet), a river with an animated flow line winding into a lake with breathing ripples, and a two-band ocean lapping along the viewport bottom — ambient `prefers-reduced-motion`-gated loops + SDA `scroll(root)` mountain parallax, `isolation: isolate` on the story root for the z-index -1 layer, WCAG-verified palette both schemes. Fallout fix (D44): the landing's `:global(html.dark) .x` dark rules never applied (the compiler drops the descendant — the recorded D39 caveat); the three task-touched components now use fully-global `:global(html.dark .x)` selectors, so dark mode actually flips the map frame/islands, the owes bars, and the scenery. The Plan/Map/Offline/Final chapters, the turtle, `tailwind.css`, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated (landing spec updated: payments/tangle absence asserted, balances contracts added, scenery presence, turtle count 4→3) · landing+smoke specs green against the production build · build green · budget 171.7/300 KB · landing CSS 4.56 KB gz (budget 8) · SVG 16.87 KB raw (budget 25 — the tangle+turtle removal outweighs the scenery) · Lighthouse mobile 97 / A11y 100 / BP 100 / LCP 1.21 s · vision review (hero/plan/money/final light+dark, desktop fade) · recycle #8 restoration from `/tmp/my-project/zip-archive/pasyal-v2-10-1.zip`** |
 | **v2.10-3 — itinerary card: owner's row order + 3-line clamp (2026-11-18, owner-requested)** | **`app/pages/trips/[id]/itinerary/index.vue` (D45): the item card shows one line per fact in the owner's exact order — Title, Time (own row, 🕒), Location (own row, 📍), Description, Open booking, Open in Maps, Edited by — and every info line clamps at 3 lines (`break-words line-clamp-3`), so long titles/place names/pasted descriptions can no longer stretch a card into a wall of text. The two links promote from inline underlined text to compact outlined chips (🎟️ / 🗺️, one per line, mobile-friendly tap targets, same `primary` token both schemes). pages.spec.ts fallout only: the single time·place line assertion splits into two row assertions, link names follow the new labels, and two new contracts prove the row order (position check on both fixture cards) + the clamp class count. `map.vue`'s own popup link, the form, and every other route deliberately untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated · build green · budget 171.7/300 KB (CSS-class-only change, no JS delta) · real-browser clamp proof (6-line title renders at exactly 3 lines, `-webkit-line-clamp: 3`, 66/22 px) · vision review light+dark at 390×844 with a long-text fixture · recycle #9: tree restored byte-verified from the delivered `pasyal-v2-10-2.zip`, stale port-3000 dev server killed, Playwright Chromium reinstalled** |
 | **v2.10-4 — Money settle-up card restored, tangle kept out (2026-11-18, owner-requested)** | **One change (D46): the owner asked to "revert it back and remove only this illustration" (quoting the money-tangle SVG) — so `LandingMoney.server.vue` returns to its v2.10-1 form (the "4 payments settle everything" card with all four §6.6 payments, the receipt-pose turtle, the intro sentence, the 240svh track + original beat map, the ≤740px settle tweaks) with the tangle illustration alone removed (the SVG, its base rules, the scrubbed overlay + `lnd-money-tangle` keyframes, the `.money-settle` overlay anchor); the v2.10-2 D44 dark selector fix is kept on purpose. `landing.spec.ts` fallout only: the four payments + `.money-settle`/`.money-turtle` presence re-asserted, "Dan pays Ana" back in the 360×640 / reduced-motion / ?landing=static specs, the no-JS turtle count back to ≥4 — the tangle-absence assertion and the v2.10-2 balances/scenery contracts stay. The Itinerary page, the scenery, the Plan/Map/Offline/Final chapters and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated · build green · budget 171.7/300 KB (server component — no JS delta) · production-build vision check light+dark at 390×844: settle card + turtle present, no tangle (the only curve left is the scenery river behind the story), `.money-track` measured 2025.59 px ≈ 2.4 × 844 (240svh back), `--lnd-owe` flips to the dark value (D44 survives) · diff vs the v2-10-3 zip = the component, the spec, this file** |
+| **v2.11 — offline trips list + balances offline UX (2026-11-19, owner-reported)** | **Two owner reports from real offline use. (1) "i cannot see the list of my trips. its show the offline warning that i am offline" — root cause: since M5 the `/trips` stale banner sat in the loading/error `v-else-if` chain, so an offline snapshot restore showed the banner and suppressed the list entirely (reproduced in the production build; the existing offline e2e asserted banners on the itinerary/expenses tabs, which never had the bug, so it slipped through). Fix (D48): the banner is standalone like the other tabs, plus two hardening layers — `reconstructOfflineTripList` (pure, in `app/lib/offline.ts`, unit-tested ×5) rebuilds the index from the per-trip snapshots already on the device when the list snapshot is missing (my-membership filter, dedupe, newest-first; `my_net_minor` is server-computed so the balance badge is hidden on rebuilt rows, banner says "the trips you've opened on this device"), and `app.vue` warms the `__trips_list` snapshot once per app start when online + signed in. (2) "in Balances Page, it says 'TypeError: Failed to fetch' what do you think is the best flow or UX for this matter? I will go to your recommendation" — implemented recommendation (D47): the same offline contract as every other tab — new `balances` snapshot kind (`{balances, settlements, expenses}` per trip), `browserOffline()` fast path + `isNetworkError` fallback → snapshot restore under the amber banner (no doomed fetches, no retry backoff), transport errors never render raw (no snapshot → `OFFLINE_NO_SNAPSHOT` + Try again; real server errors → "Could not load balances. Please try again."), and record/confirm/delete payments refuse offline with `OFFLINE_BLOCKED_MESSAGE` at the entry point (online-only by design, FR-PWA-04 scope — money writes are not queued). Balances also reload after the offline queue flushes (`useQueueSynced`). Files: `app/pages/trips/index.vue`, `app/pages/trips/[id]/balances.vue`, `app/lib/offline.ts`, `app/app.vue` + the two specs + the two state docs. The landing page, the itinerary card, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 211 (206+5 new reconstruction tests) · mocked Playwright 49 passed + 10 env-gated (44+5 new v2.11 specs: warm, rebuild, balances snapshot restore, balances friendly empty, offline record refusal) · build green · budget 172.0/300 KB (+0.3 KB) · production-build offline verification 15/15 against the real SW with aborted Supabase requests (`scripts/verify-offline-v211.mjs` pattern) · 390×844 screenshots pixel-checked (content + amber banner) · diff vs the v2-10-4 zip = the four app files, the two specs, the two docs · recycle #10: tree restored from the delivered `pasyal-v2-10-4.zip`, stale port-3000 dev server killed, Playwright Chromium 1254 reinstalled** |
 | M7 Demo and pilot readiness | Seed data, demo script, privacy pages, pilots | ⬜ Not started | SC-01 |
+
+---
+
+## Current state — v2.11 (offline trips list + balances offline UX, 2026-11-19)
+
+The owner took the app offline for the first time on a real device and
+filed the two reports this delivery fixes. Their instruction: "focus only
+on what task i gave you. update the project state and offline-mode-state
+after. name the latest zip file with pasyal-v2-11.zip".
+
+### Report 1 — "i cannot see the list of my trips. its show the offline
+warning that i am offline"
+
+Reproduced against a real production build (service worker active,
+Supabase requests aborted like a dead radio) before touching anything.
+The diagnosis had three layers, and all three are fixed:
+
+1. **The template-chain bug (the actual report, present since M5).**
+   On `/trips` the stale banner was written as
+   `<p v-if="stale && !loadError">` directly followed by
+   `<div v-else-if="loadError">` and `<template v-else>` (the list). An
+   offline snapshot restore sets `stale = true` → the banner rendered and
+   the `v-else` list was **suppressed** — the screen showed exactly what
+   the owner described: the offline warning, no trips, even with a
+   perfectly good snapshot in storage. The expenses / summary / itinerary
+   tabs never had the bug (their banners are standalone elements), which
+   is also why the M5 offline e2e — which asserts banner + content on
+   those tabs — never caught it: nobody asserted trip cards on `/trips`
+   offline. Fix: the banner is now standalone and the list renders under
+   it, with new e2e contracts that assert the cards.
+2. **The no-snapshot dead end (hardening).** When the `__trips_list`
+   snapshot was missing (cleared storage, or a session that only ever
+   deep-linked into a trip), the screen dead-ended on
+   `OFFLINE_NO_SNAPSHOT` even though the device still held every opened
+   trip's own `snap:v1:trip:<id>` payload. New pure helper
+   `reconstructOfflineTripList` (in `app/lib/offline.ts`, framework-free,
+   5 unit tests) rebuilds the index from those: only trips where the
+   caller has a membership row, deduplicated, newest departure first;
+   `my_net_minor` is server-computed so rebuilt rows carry `null` and the
+   balance badge is hidden — the banner honestly says "showing the trips
+   you've opened on this device (possibly outdated). Balances and recent
+   changes aren't available offline."
+3. **The warm gap (prevention).** The list snapshot was only written when
+   `/trips` itself loaded online. `app.vue` now warms it once per app
+   start when online + signed in (fire-and-forget `my_trips_summary` →
+   `saveSnapshot`), so a session that only opens a trip — invite link,
+   deep link, landing "My Trips" — still goes offline with a fresh list
+   snapshot.
+
+### Report 2 — "in Balances Page, it says 'TypeError: Failed to fetch'
+what do you think is the best flow or UX for this matter?"
+
+The owner asked for a recommendation and pre-approved it ("I will go to
+your recommendation"). Implemented recommendation (D47): **give Balances
+the same offline contract every other tab already has** — the v2.9 audit
+had Balances as its gap #2 ("no snapshot… shows an error state even when
+the same trip's other tabs render from snapshots") and recommended
+exactly this. Concretely, in `balances.vue`:
+
+* **Read offline.** Every successful load snapshots
+  `{balances, settlements, expenses}` under the new `balances` snapshot
+  kind (`pasyal:snap:v1:balances:<tripId>`); `browserOffline()` skips the
+  doomed requests entirely and restores the snapshot; a transport failure
+  mid-load (`isNetworkError`, the lie-fi case) falls back to the snapshot
+  too. Restored screens show the standard amber banner: "You're offline —
+  showing balances as you last viewed them (possibly outdated). Recording
+  payments needs a connection." The drill-down works offline as well (its
+  expense lines are part of the snapshot).
+* **Never a raw transport error.** No snapshot → the friendly
+  `OFFLINE_NO_SNAPSHOT` state with a Try again button; a genuine server
+  error (RLS etc., online) → "Could not load balances. Please try again."
+  The string `TypeError: Failed to fetch` can no longer reach the screen.
+* **Writes stay online-only, politely.** Recording / confirming /
+  deleting payments remains network-bound by design (FR-PWA-04 scopes the
+  queue to expenses + itinerary; money writes are not queued — D13).
+  Offline, the buttons now refuse with the shared `OFFLINE_BLOCKED_MESSAGE`
+  at the entry point — the record dialog does not even open — instead of
+  failing on submit with a fetch error.
+* **Numbers refresh after a sync.** `useQueueSynced` reloads balances
+  after the offline queue flushes on reconnect (offline-added expenses
+  change the balances once synced) — the same wiring the expenses /
+  itinerary / summary tabs have.
+
+### Files changed (four app files, two specs, two docs — nothing else)
+
+* `app/pages/trips/index.vue` — banner decoupled from the loading/error
+  chain; reconstruction fallback; `my_net_minor` relaxed to nullable with
+  the badge hidden on rebuilt rows.
+* `app/pages/trips/[id]/balances.vue` — the D47 offline contract.
+* `app/lib/offline.ts` — `balances` snapshot kind; `storageKeys` (the
+  Web-Storage `length`/`key(i)` iteration real localStorage carries);
+  `reconstructOfflineTripList` + `OfflineTripRow`.
+* `app/app.vue` — the app-start trips-list snapshot warm.
+* `tests/unit/offline.spec.ts` — +5 reconstruction tests, the `balances`
+  key-kind contract; the storage fake now exposes `length`/`key(i)`.
+* `tests/e2e/pages.spec.ts` — +5 v2.11 specs: the warm (snapshot restored
+  by reload without visiting `/trips`, then the offline list under the
+  banner), the rebuild from per-trip snapshots (with the badge-absence
+  contract), balances snapshot restore offline, balances friendly empty
+  state (no `TypeError`/`Failed to fetch` anywhere), offline record
+  refusal (alert + no dialog).
+* `project-state.md` (this file) + `offline-mode-state.md` — the two
+  state docs the owner asked to have updated.
+
+Delivered on top of recycle #10: the sandbox had reverted the tree to a
+pre-v2.10 state; it was restored from the delivered `pasyal-v2-10-4.zip`
+(byte-verified: `money-tangle` absent, the v2.10-4 sections present), the
+stale port-3000 dev server was killed, and Playwright's Chromium 1254
+build was reinstalled before the gates ran.
+
+### Verification
+
+lint 0 · typecheck 0 · vitest **211** (206 + 5) · mocked Playwright
+**49 passed + 10 env-gated** (44 + 5) · build green · budget
+**172.0 / 300 KB** (+0.3 KB for the offline additions). Beyond the gates,
+a dedicated **production-build offline verification (15/15 checks)** ran
+the real `.output` server + the real service worker with Supabase requests
+*aborted* while offline (unlike dev route mocks, which keep fulfilling
+under `setOffline`): the offline `/trips` list renders under the banner;
+the list-snapshot-missing rebuild works; the honest empty state shows when
+nothing is on the device; balances restores from its snapshot (rows +
+banner, no `TypeError`); the no-snapshot balances state is friendly; and
+offline record attempts are refused with the shared copy. Screenshots at
+390×844 pixel-verified (content present, amber banner present on both
+screens). Diff vs the v2-10-4 zip = the four app files, the two specs, the
+two state docs.
 
 ---
 
@@ -1258,6 +1385,8 @@ date inputs verified fine after that; footer text cleared the tab bar
 | D42 | **The Money chapter's settle-up beat is removed (v2.10-2):** the whole `money-settle` block goes — the decorative debt-tangle SVG (six crossing arcs that, mid-scrub, painted ACROSS the balances and settle cards), the "4 payments settle everything" card, and the receipt-pose turtle (the mascot remains in Hero/Map/Final; the `receipt` pose CSS stays in LandingTurtle for whenever a chapter wants it again). The chapter now ends on the §6.6 receipts + balances tally; the intro sentence that narrated the removed animation is rewritten; the scrub track shrinks 240→200svh with beats re-mapped to fill the pin window (receipts 33–57%, fills 57–67% — no dead scroll). The §6.6 simplified payments stay demoed where they live for real: the app's Balances tab (pages.spec asserts all four, untouched). Landing spec: absence assertions for `.money-settle`/`.money-tangle`, balances contracts instead | v2.10-2 (2026-11-16) | Owner review of v2.10-1: "can you check what is this 'money-settle' do ? i think its better to remove it." — the mid-scrub vision review confirmed the block read as a crowded, confusing extra (tangle arcs crossing the cards, clipped turtle) | Owner direction |
 | D43 | **Animated travel scenery behind the whole story (v2.10-2):** a new `LandingScenery.server.vue` — a fixed z-index -1 layer (the story root gains `isolation: isolate` so it stacks behind every chapter, above the app background, and never under the header / over the footer) carrying one bottom-anchored 1600×900 panorama: two gradient-faded mountain ranges, a river (animated flow dashes — the same paint-only stroke-dashoffset exception as the Plan route) into a lake with breathing ripples, and a two-band ocean lapping along the bottom edge (periodic paths, one period per seamless loop, different speeds). `width: max(100vw, 1600/900·100vh)` keeps the full scene viewport-height from 320×568 to 1440×900; river/lake sit in the x≈548–1052 crop-safe zone. All ambient loops live under `prefers-reduced-motion: no-preference` (reduce = a static painting); SDA engines additionally sink the mountains via `animation-timeline: scroll(root)`. Palette WCAG-verified numerically BEFORE writing (scripts/check-scenery-contrast.mjs — worst text-on-shape pairing 5.0:1, both schemes; Lighthouse A11y stayed 100). Zero client JS (server component), CLS 0, +0.28 KB gz CSS / +2.7 KB raw SVG — and the total SVG budget still FELL (16.87 vs 18.2 KB) because D42 removed more than the scenery adds | v2.10-2 (2026-11-16) | Owner request: "Can you add a additional background like, mountain, lake, river, ocean and it has animation also. like scenery in travel." | Owner direction |
 | D44 | **Landing dark palettes actually apply now (v2.10-2 fallout fix):** a LEADING `:global(html.dark) .x` in scoped CSS compiles to a bare `html.dark { vars }` rule — the SFC compiler drops the descendant selector (the exact toolchain behavior recorded as a D39 rejection note), and the direct light values defined on the element itself always beat the inherited dark ones. Consequence since v2.10: `--lnd-water/island/guide/dot*`, `--lnd-owe` and the scenery palette never flipped — dark mode showed a pale map frame with light legend text on it (unreadable) and light-mode islands. Fix: fully-global selectors `:global(html.dark .x)` in the three components the v2.10-2 task touches (Story, Money, Scenery) — specificity (0,2,1) beats the scoped light rules (0,2,0); verified computed-value flips in the running app. LandingTurtle deliberately keeps its old form this round (its light/dark values are visually near-identical — not part of the owner's two tasks); flagged for the next pass that touches that file | v2.10-2 (2026-11-16) | Found while wiring D43: the scenery's dark palette refused to apply, and the debug (`getComputedStyle` before/after) exposed the pre-existing breakage in the shell's palette | Engineering decision |
+| D47 | **Balances gets the full offline contract (v2.11):** the owner reported the raw "TypeError: Failed to fetch" on the Balances page offline and asked for the best flow/UX, pre-approving the recommendation. Implemented: read offline from a new `balances` snapshot (`{balances, settlements, expenses}`) under the standard amber "possibly outdated" banner; `browserOffline()` fast path + `isNetworkError` fallback (no doomed fetches, no supabase-js retry backoff hang); transport errors never render raw — no snapshot shows `OFFLINE_NO_SNAPSHOT` + Try again, real server errors show friendly copy; record/confirm/delete payments stay online-only by design (money writes are NOT queued — D13's FR-PWA-04 scope) and refuse offline with `OFFLINE_BLOCKED_MESSAGE` at the entry point (the record dialog does not open); `useQueueSynced` reloads the numbers after the offline queue flushes. This closes the v2.9 audit's gap #2 and polishes its gap #3 for the balances actions | v2.11 (2026-11-19) | Owner request: "in Balances Page, it says 'TypeError: Failed to fetch' what do you think is the best flow or UX for this matter ? I will go to your recommendation." | Owner direction (pre-approved) |
+| D48 | **The offline trips list renders again — and reconstructs when the list snapshot is missing (v2.11):** the owner's "i cannot see the list of my trips" was a template-chain bug present since M5: the `/trips` stale banner sat inside the loading/error `v-else-if` chain, so an offline snapshot restore rendered the banner and suppressed the list. Fix layers: (1) the banner is standalone like the expenses/summary tabs (the snapshot list renders under it — new e2e contracts assert the cards, which is why this survived five versions of green offline suites); (2) `reconstructOfflineTripList` (pure, unit-tested) rebuilds the index from the per-trip snapshots already on the device when the list snapshot is missing — my-membership filter, dedupe, newest-first, `my_net_minor: null` (server-computed) so the balance badge is hidden on rebuilt rows and the banner says "the trips you've opened on this device"; (3) `app.vue` warms the `__trips_list` snapshot once per app start when online + signed in, so deep-link-only sessions no longer go offline without it | v2.11 (2026-11-19) | Owner report: "my first encounter during my offline mode is i cannot see the list of my trips. its show the offline warning that i am offline." — reproduced in the production build before the fix | Owner report (bug) |
 
 ---
 

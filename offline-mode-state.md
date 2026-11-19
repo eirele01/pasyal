@@ -1,9 +1,16 @@
 # Pasyal — Offline Mode State
 
 Audit of the app's offline behavior, produced 2026-11-15 from the
-delivered **v2.8** tree (`pasyal-v2-8.zip`, D37). Documentation only —
-**no code was changed by this audit**. Every claim below is grounded in a
-file in the tree; references are given so each line can be re-checked.
+delivered **v2.8** tree (`pasyal-v2-8.zip`, D37), and **updated
+2026-11-19 for v2.11** after the owner's first real offline session
+(sections marked **[v2.11]** below). Documentation only unless a
+**[v2.11]** note says code changed — the v2.11 changes are the two the
+owner reported: the offline trips list (a template bug had been
+suppressing the list under the banner since M5 — fixed, plus a
+reconstruction fallback and an app-start warm) and the Balances page
+(now snapshotted like every other tab; the raw "TypeError: Failed to
+fetch" can no longer appear). Every claim below is grounded in a file in
+the tree; references are given so each line can be re-checked.
 
 Related documents: [`project-state.md`](project-state.md) (status,
 decisions), [`docs/SPEC.md`](docs/SPEC.md) §5.10 / FR-PWA-01..06
@@ -22,7 +29,7 @@ Yes — as a *read-mostly PWA with a queued-write path*, exactly as SPEC
 |---|---|
 | Does the app open offline (installed or in the tab)? | Yes. The service worker serves the precached app shell; the landing page is prerendered and always available (FR-PWA-02). |
 | Can a signed-in user stay signed in offline? | Yes. The Supabase session lives in `localStorage`; restoring it needs no network. |
-| Can trips / expenses / itinerary / summary be READ offline? | Yes — from per-screen `localStorage` snapshots, each clearly banner-marked "possibly outdated" (FR-PWA-03). Only screens never viewed online show a "reconnect to load" empty state. |
+| Can trips / expenses / itinerary / balances / summary be READ offline? | Yes — from per-screen `localStorage` snapshots, each clearly banner-marked "possibly outdated" (FR-PWA-03). **[v2.11]** Balances is now snapshotted like the rest (it was the last unsnapshotted screen), and the trips list has a second chance: if its own snapshot is missing, the index is rebuilt from the per-trip snapshots already on the device. Only screens never viewed online show a "reconnect to load" empty state. |
 | Can anything be WRITTEN offline? | Yes, two kinds: expense create/edit and itinerary item add/edit are queued locally, appear instantly as pending cards, and sync exactly once on reconnect (FR-PWA-04, FR-EXP-13). |
 | What is NOT possible offline? | Destructive/atomic actions (expense delete, itinerary delete/reorder/day ops, settle-up, trip create/join, profile edits), any authentication, live location of other members, place search, and fresh map tiles outside the cache. Each fails with a visible message, never a silent break (§10.2). |
 
@@ -93,8 +100,12 @@ not limited to `navigator.onLine === false`).
 
 * Every **successful** load of a snapshot-backed screen writes a
   `localStorage` snapshot (`pasyal:snap:v1:<kind>:<tripId>`, kinds
-  `trip`, `itinerary`, `expenses`, plus the pseudo-trip `__trips_list`
-  for the trips index).
+  `trip`, `itinerary`, `expenses`, and **[v2.11]** `balances`, plus the
+  pseudo-trip `__trips_list` for the trips index).
+* **[v2.11]** The trips-list snapshot is additionally **warmed at app
+  start** (`app.vue`): one fire-and-forget `my_trips_summary` call per
+  app boot when online + signed in, so a session that only deep-links
+  into a trip still goes offline with a fresh list snapshot.
 * On load, two offline paths:
   * **Fast path** — `browserOffline()` (`navigator.onLine === false`):
     the request is skipped entirely (supabase-js would otherwise retry
@@ -105,10 +116,23 @@ not limited to `navigator.onLine === false`).
     dead): the snapshot restores.
   * Either way `stale` goes true and the screen shows the amber
     `stale-banner`: *"You're offline — showing … as you last viewed it
-    (possibly outdated)."*
+    (possibly outdated)."* The banner is a **standalone** element on
+    every screen — **[v2.11]** on `/trips` it used to sit inside the
+    loading/error `v-else` chain, which suppressed the list itself
+    offline (the owner's "i cannot see the list of my trips" report;
+    fixed by decoupling it like the expenses/summary tabs always were).
+* **[v2.11]** Trips-index fallback chain: with the `__trips_list`
+  snapshot missing, `reconstructOfflineTripList` (pure, unit-tested in
+  `app/lib/offline.ts`) rebuilds the list from the per-trip snapshots
+  already on the device — only trips where the caller has a membership
+  row, deduplicated, newest departure first; the balance badge is
+  hidden on rebuilt rows (`my_net_minor` is server-computed) and the
+  banner says "showing the trips you've opened on this device".
 * **No snapshot** (screen never viewed online): the explicit empty state
   `OFFLINE_NO_SNAPSHOT` — *"You're offline and this screen hasn't been
-  viewed online yet — reconnect to load it."*
+  viewed online yet — reconnect to load it."* **[v2.11]** Balances now
+  follows the same rule — before v2.11 it rendered the raw
+  `TypeError: Failed to fetch` instead.
 * Quota errors (private mode, huge trips) are swallowed — offline reading
   simply loses that snapshot; the online path is never affected.
 
@@ -170,7 +194,7 @@ not limited to `navigator.onLine === false`).
 | `/auth/callback` | Cannot complete — the OAuth code exchange needs Supabase. | `detectSessionInUrl` PKCE flow |
 | `/account` | Renders (client-only); profile rename fails: *"Could not save the name. Please try again."* | `account.vue` |
 | `/settings` | Renders; install section reflects device state; guided install sheet is device-side. Sign-out clears the local session. | `settings.vue` (FR-PWA-01) |
-| `/trips` (list) | Last-viewed list from snapshot + stale banner; never viewed → `OFFLINE_NO_SNAPSHOT` empty state. | `trips/index.vue` (`__trips_list` snapshot) |
+| `/trips` (list) | Last-viewed list from snapshot + stale banner; **[v2.11]** with the list snapshot missing, rebuilt from the per-trip snapshots on the device (badge-less rows, honest banner); never viewed → `OFFLINE_NO_SNAPSHOT` empty state. The list snapshot is also warmed at every app start while online + signed in. | `trips/index.vue` (`__trips_list` snapshot, `reconstructOfflineTripList`, `app.vue` warm) |
 | `/trips/new`, `/join/[code]` | Trip creation / invite acceptance require the network; failures surface as form errors. | RPC `create_trip` / invite flow |
 | `/trips/[id]` (wrapper + Overview tab) | Trip + members from snapshot, stale banner. | `useTripData` (FR-PWA-03) |
 | `…/expenses` (list) | Snapshot + stale banner; queued writes appear as **pending cards**; auto-reloads after sync. | `expenses/index.vue`, `useQueueSynced` |
@@ -178,7 +202,7 @@ not limited to `navigator.onLine === false`).
 | `…/expenses/[id]` (detail) | No dedicated snapshot; delete needs the network and reports the error. | `delete_expense` RPC online-only |
 | `…/itinerary` | Snapshot + stale banner; **add/edit queued** with "Saved offline…" notice and pending rows; **delete / reorder / add-day / remove-day refuse** with `OFFLINE_BLOCKED_MESSAGE`. | `useItinerary` (documented scope decision) |
 | `…/map` | Cached tiles render (CacheFirst, ≤300); uncached tiles → *"Map tiles could not load. Check your connection."* while the map chrome stays usable; itinerary markers restore from the itinerary snapshot; **no live pins** — persisted-pin seed query fails silently, realtime channel shows *"Live updates are unavailable right now — showing the last known positions."* Own GPS positioning still works (local sensor). | `TripMap.client.vue`, `map.vue`, `useLiveLocation` (NFR-REL-02) |
-| `…/balances` | **No snapshot** — loads fail and the error is shown; settle-up recording/confirmation need the network. (Out of FR-PWA-03's named scope — see §7 gap 2.) | `balances.vue` |
+| `…/balances` | **[v2.11]** Snapshot + stale banner (balances, settlements and the drill-down expense lines restore together); recording / confirming / deleting payments is online-only by design and refuses offline with `OFFLINE_BLOCKED_MESSAGE` (the record dialog does not even open); no snapshot → the friendly `OFFLINE_NO_SNAPSHOT` state + Try again. Reloads after the offline queue flushes (`useQueueSynced`). | `balances.vue` |
 | `…/summary` | Reuses the expenses snapshot + stale banner; auto-reloads after sync. | `summary.vue` |
 
 Navigation itself: any **previously visited** route loads offline from
@@ -217,7 +241,8 @@ offline error page (accepted amendment, §2.1).
 | `pasyal:snap:v1:trip:<id>` | `localStorage` | Trip + members snapshot | Quota-guarded (§2.2) |
 | `pasyal:snap:v1:itinerary:<id>` | `localStorage` | Days + items (incl. pending overlays) | Quota-guarded |
 | `pasyal:snap:v1:expenses:<id>` | `localStorage` | Expense rows (also read by Summary) | Quota-guarded |
-| `pasyal:snap:v1:expenses:__trips_list` | `localStorage` | Trips list snapshot | Quota-guarded |
+| `pasyal:snap:v1:expenses:__trips_list` | `localStorage` | Trips list snapshot (written by the `/trips` screen **and warmed at app start — [v2.11]**) | Quota-guarded |
+| `pasyal:snap:v1:balances:<id>` | `localStorage` | **[v2.11]** Balances + settlements + drill-down expenses snapshot | Quota-guarded |
 | Supabase session key | `localStorage` | Auth session (PKCE) | supabase-js managed |
 | `pasyal:hide-install` | `localStorage` | Dismissed install prompt | — |
 | Workbox precache | CacheStorage | App shell (JS/CSS/HTML/icons/fonts, landing page) | Replaced per release |
@@ -228,19 +253,38 @@ offline error page (accepted amendment, §2.1).
 
 ## 6. What the test suite proves (current baselines)
 
-* **Unit** (`tests/unit/offline.spec.ts`, inside the 206 green): queue
-  round-trips, corrupt-JSON tolerance, malformed-entry dropping,
-  order-preserving error marking, snapshot save/read/keys, quota
-  survival, the `isNetworkError` true/false matrix (transport vs
+* **Unit** (`tests/unit/offline.spec.ts`, inside the **[v2.11]** 211
+  green): queue round-trips, corrupt-JSON tolerance, malformed-entry
+  dropping, order-preserving error marking, snapshot save/read/keys
+  (incl. the `balances` kind), quota survival, the `isNetworkError`
+  true/false matrix (transport vs
   validation/permission), and both overlay merges (pending cards, edit
-  patching, cross-trip isolation, exact list ordering).
-* **Mocked Playwright** (`tests/e2e/pages.spec.ts`, M5 section, inside
-  the 36 green): with `context.setOffline(true)` — the Offline badge
-  appears; an expense added offline is queued, rendered as a pending
-  card, and **syncs exactly once** on reconnect against stateful route
-  mocks; the stale banner renders. (Route mocks still fulfill under
-  network emulation, so the offline *state* is driven by the real
-  `offline` events while the sync path is asserted against mocks.)
+  patching, cross-trip isolation, exact list ordering) — plus **[v2.11]**
+  five `reconstructOfflineTripList` tests (rebuild from per-trip
+  snapshots, newest-first ordering, no-membership filtering,
+  corrupt/unrelated-key tolerance, empty storage).
+* **Mocked Playwright** (`tests/e2e/pages.spec.ts`, M5 + v2.11 sections,
+  inside the **[v2.11]** 49 green): with `context.setOffline(true)` — the
+  Offline badge appears; an expense added offline is queued, rendered as
+  a pending card, and **syncs exactly once** on reconnect against
+  stateful route mocks; the stale banner renders; **[v2.11]** the
+  trips-list snapshot is warmed at app start (asserted via storage,
+  without visiting `/trips`), the offline `/trips` list renders under
+  the banner and rebuilds from per-trip snapshots when the list
+  snapshot is missing (badge-absence asserted), balances restores from
+  its snapshot offline, the no-snapshot balances state is the friendly
+  message + Try again (never `TypeError` / `Failed to fetch`), and an
+  offline record attempt is refused with `OFFLINE_BLOCKED_MESSAGE`
+  without opening the dialog. (Route mocks still fulfill under network
+  emulation, so the offline *state* is driven by the real `offline`
+  events while the sync path is asserted against mocks.)
+* **[v2.11] Production-build offline verification**: a dedicated
+  15-check run against the real `.output` server + the real service
+  worker, with Supabase requests *aborted* while offline (unlike dev
+  route mocks, which keep fulfilling): the offline trips list, the
+  rebuild, the honest empty state, the balances restore, the friendly
+  no-snapshot state and the offline record refusal — all pass, zero raw
+  transport errors on screen.
 * **Env-gated E2E-08** (`tests/e2e/e2e-08.spec.ts`, one of the 10 that
   skip without `SUPABASE_KEY`): the full offline→reconnect story against
   a **real** Supabase project — add offline, reconnect, verify sync and
@@ -255,7 +299,8 @@ offline error page (accepted amendment, §2.1).
 
 ---
 
-## 7. Gaps and accepted limitations (audit findings — nothing changed)
+## 7. Gaps and accepted limitations (audit findings; gaps 2 and half
+of 3 were closed by v2.11)
 
 Ordered by user impact. Items 1–2 are the only ones a traveler would
 plausibly notice; none is a crash or data-loss risk.
@@ -265,16 +310,19 @@ plausibly notice; none is a crash or data-loss risk.
    try again."* (`signin.vue` fallback; `authErrors.ts` maps config
    errors only). True but misleading offline — the email/password are
    fine, the network is not. A "You're offline" variant would be honest.
-2. **Balances has no offline snapshot** (SPEC FR-PWA-03 names only trip /
-   expenses / itinerary data, so this is a scope boundary, not a bug):
-   opening `…/balances` offline shows an error state even when the same
-   trip's other tabs render from snapshots. The settle-up actions are
-   likewise online-only.
+2. ~~**Balances has no offline snapshot**~~ **[v2.11] FIXED (D47):**
+   balances now snapshots `{balances, settlements, expenses}` per trip,
+   restores under the standard amber banner offline, shows the friendly
+   `OFFLINE_NO_SNAPSHOT` state + Try again when never viewed online,
+   reloads after the offline queue flushes, and its settle-up actions
+   refuse offline with `OFFLINE_BLOCKED_MESSAGE`. This was the owner's
+   "TypeError: Failed to fetch" report.
 3. **Expense delete and settle-up are not queued** (documented scope:
    FR-PWA-04 covers "expenses, itinerary edits"; atomic/destructive RPCs
-   are deliberately excluded). Offline attempts show the raw error
-   message rather than the polished `OFFLINE_BLOCKED_MESSAGE` copy the
-   itinerary actions use — consistent in behavior, inconsistent in tone.
+   are deliberately excluded). **[v2.11]** The *balances* actions
+   (record / confirm / delete payment) now refuse offline with the
+   polished `OFFLINE_BLOCKED_MESSAGE` copy; expense delete still shows
+   the raw error message offline — the remaining inconsistency in tone.
 4. **Map tiles are bounded at 300 entries / 7 days.** Roughly a city
    view of browsing; pan far or zoom out offline and new tiles show the
    load-failure notice. Bulk offline region download is explicitly
@@ -312,9 +360,12 @@ plausibly notice; none is a crash or data-loss risk.
 3. DevTools → Application → Service Worker must show an activated
    worker; then Network → **Offline**.
 4. Reload: the app still opens; the header shows the amber **Offline**
-   badge; visited tabs show the amber "possibly outdated" banner;
-   Balances shows its error state; a deep link to a never-visited route
-   shows the browser's offline page.
+   badge; visited tabs show the amber "possibly outdated" banner
+   (Balances included — **[v2.11]** it restores from its snapshot like
+   the other tabs); a deep link to a never-visited route shows the
+   browser's offline page. The trips list also renders offline —
+   **[v2.11]** even with the list snapshot cleared, from the per-trip
+   snapshots of trips you opened.
 5. Add an expense offline: it appears as a pending card with the "1
    change queued" indicator.
 6. Turn Network back to **Online**: the indicator flips to "Syncing…",
@@ -324,17 +375,16 @@ plausibly notice; none is a crash or data-loss risk.
 
 ---
 
-## 9. If the owner wants to improve offline next (recommendations — not implemented)
+## 9. If the owner wants to improve offline next (recommendations)
 
 1. **Offline-aware copy on the auth pages** (gap 1): a one-line branch on
    `isNetworkError(error)` → "You're offline — sign-in needs a
    connection." Cheapest, most user-visible win.
-2. **Balances snapshot** (gap 2): the summary page already demonstrates
-   the pattern of reusing the expenses snapshot; balances could reuse
-   the trip + expenses snapshots the same way (totals are computed
-   client-side from expense rows).
-3. **Polish the online-only error copy** for expense delete / settle-up
-   to match `OFFLINE_BLOCKED_MESSAGE` (gap 3).
+2. ~~**Balances snapshot** (gap 2)~~ **[v2.11] DONE** — snapshot + banner
+   + friendly no-snapshot state + offline refusal copy on the settle-up
+   actions + post-sync reload (D47).
+3. **Polish the online-only error copy for expense delete** (gap 3's
+   remaining half) to match `OFFLINE_BLOCKED_MESSAGE`.
 4. **Pre-cache the tile viewport of an upcoming day** (gap 4) if pilots
    report missing tiles — still within the 300-entry cap if scoped to
    the itinerary's own geocoded items.
@@ -352,4 +402,6 @@ useRealtimeTables}.ts`, `app/plugins/supabase.ts`, `app/middleware/auth.ts`,
 unit/e2e specs referenced in §6. Gates at audit time: lint 0 · typecheck
 0 · vitest 206 · mocked Playwright 36 (+10 env-gated) · build green ·
 budget 165.9/300 KB — the v2.8 baseline, re-run after the byte-exact
-v2-8 restore.*
+v2-8 restore. **[v2.11]** Gates on the updated tree: lint 0 · typecheck
+0 · vitest 211 · mocked Playwright 49 (+10 env-gated) · build green ·
+budget 172.0/300 KB · production-build offline verification 15/15.*

@@ -1,6 +1,35 @@
 <script setup lang="ts">
+import { saveSnapshot, snapshotKey } from '~/lib/offline'
+
 const user = useSupabaseUser()
 const supabase = useSupabase()
+
+// v2.11 (FR-PWA-03): warm the trips-list snapshot once per app start
+// when online and signed in. The list screen snapshots itself whenever
+// it loads, but a session that only opens a trip (deep link, invite,
+// landing "My Trips") would otherwise leave the trips index without a
+// snapshot — and the owner's first offline encounter was exactly that:
+// offline, /trips, and no list. Fire-and-forget: a failed warm never
+// blocks or breaks the app (the /trips screen still snapshots itself).
+async function warmTripsSnapshot() {
+  if (!user.value || !navigator.onLine) return
+  try {
+    const { data: rows } = await supabase.rpc('my_trips_summary')
+    if (rows && import.meta.client) {
+      saveSnapshot(
+        window.localStorage,
+        snapshotKey('expenses', '__trips_list'),
+        rows,
+        Date.now(),
+      )
+    }
+  } catch {
+    // Offline mid-warm or storage quota — the /trips screen re-snapshots
+    // on its own successful load; never surface a background failure.
+  }
+}
+
+onMounted(warmTripsSnapshot)
 
 // iOS pass (2026-11-12): on phones the signed-in header nav (Trips /
 // Settings / Account / Sign out) collided with the logo — the four

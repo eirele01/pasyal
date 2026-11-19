@@ -20,7 +20,14 @@
  * creation order, sequentially, one at a time (§6 philosophy, FR-ITN-06).
  */
 
-import type { Expense, ExpenseWithChildren, ItemWithEditor } from '~/types/database.types'
+import type {
+  Expense,
+  ExpenseWithChildren,
+  ItemWithEditor,
+  MyTripSummaryRow,
+  Trip,
+  TripMember,
+} from '~/types/database.types'
 
 // ── Storage abstraction ─────────────────────────────────────────────────
 
@@ -30,10 +37,46 @@ export interface OfflineStorage {
   removeItem(key: string): void
 }
 
+/** The Web-Storage-style key iteration real localStorage also carries. */
+export interface KeyedOfflineStorage extends OfflineStorage {
+  length: number
+  key(index: number): string | null
+}
+
+/**
+ * Enumerates a storage's keys: the indexed `length`/`key(i)` API when the
+ * injected storage has it (real localStorage always does), enumerable
+ * own properties otherwise (test fakes that keep keys in a closure map
+ * expose them through length/key as well — see the unit fakes).
+ */
+function storageKeys(storage: OfflineStorage): string[] {
+  const indexed = storage as Partial<KeyedOfflineStorage>
+  if (typeof indexed.key === 'function' && typeof indexed.length === 'number') {
+    const keys: string[] = []
+    for (let i = 0; i < indexed.length; i += 1) {
+      const k = indexed.key(i)
+      if (typeof k === 'string') keys.push(k)
+    }
+    return keys
+  }
+  return Object.keys(storage).filter((k) => {
+    const v = (storage as unknown as Record<string, unknown>)[k]
+    return typeof v !== 'function'
+  })
+}
+
 export const QUEUE_STORAGE_KEY = 'pasyal:offline-queue:v1'
 const SNAPSHOT_PREFIX = 'pasyal:snap:v1:'
 
-export function snapshotKey(kind: 'trip' | 'itinerary' | 'expenses', tripId: string): string {
+/**
+ * Snapshot kinds (FR-PWA-03): `trip` / `itinerary` / `expenses` per trip,
+ * `balances` per trip (v2.11), plus the pseudo-trip `__trips_list` under
+ * `expenses` for the trips index.
+ */
+export function snapshotKey(
+  kind: 'trip' | 'itinerary' | 'expenses' | 'balances',
+  tripId: string,
+): string {
   return `${SNAPSHOT_PREFIX}${kind}:${tripId}`
 }
 
@@ -177,6 +220,66 @@ export function readSnapshot<T>(storage: OfflineStorage, key: string): Snapshot<
   } catch {
     return null
   }
+}
+
+// ── Offline trips-index reconstruction (v2.11) ────────────────────────
+
+/**
+ * A trips-index row rebuilt from a per-trip snapshot. Mirrors the
+ * my_trips_summary RPC row (MyTripSummaryRow) except `my_net_minor`,
+ * which only the server can compute — null means "not derivable
+ * offline" and the trips list hides the balance badge for that row.
+ */
+export type OfflineTripRow = Omit<MyTripSummaryRow, 'my_net_minor'> & {
+  my_net_minor: null
+}
+
+/**
+ * Rebuilds the offline trips index from the per-trip snapshots already
+ * on the device (v2.11). When the trips-list snapshot itself is missing
+ * (cleared storage, or the list screen was never viewed online) the
+ * trips this device HAS opened still carry `snap:v1:trip:<id>` payloads —
+ * showing those, clearly marked as possibly outdated, beats the dead
+ * "reconnect to load it" wall.
+ *
+ * Only trips where the caller's user id has a membership row are listed
+ * (defensive: a foreign snapshot should not exist under RLS, but never
+ * show a trip the user cannot open). Rows are deduplicated by trip id
+ * and sorted by start_date, newest first.
+ */
+export function reconstructOfflineTripList(
+  storage: OfflineStorage,
+  myUserId: string | null | undefined,
+): OfflineTripRow[] {
+  const rows = new Map<string, OfflineTripRow>()
+  try {
+    for (const key of storageKeys(storage)) {
+      if (!key.startsWith(`${SNAPSHOT_PREFIX}trip:`)) continue
+      const snap = readSnapshot<{ trip: Trip; members: TripMember[] }>(storage, key)
+      const t = snap?.data?.trip
+      if (!t || typeof t.id !== 'string' || typeof t.name !== 'string') continue
+      const members = Array.isArray(snap?.data?.members) ? snap.data.members : []
+      const mine = myUserId ? members.find((m) => m && m.user_id === myUserId) : undefined
+      if (!mine) continue
+      if (rows.has(t.id)) continue
+      rows.set(t.id, {
+        trip_id: t.id,
+        name: t.name,
+        start_date: t.start_date,
+        end_date: t.end_date,
+        status: t.status === 'archived' ? 'archived' : 'active',
+        base_currency: t.base_currency,
+        my_role: mine.role,
+        member_count: members.length,
+        my_net_minor: null,
+      })
+    }
+  } catch {
+    // Storage unavailable (private mode edge) → nothing to reconstruct.
+  }
+  return [...rows.values()].sort((a, b) =>
+    String(b.start_date).localeCompare(String(a.start_date)),
+  )
 }
 
 // ── Network-error detection ─────────────────────────────────────────────

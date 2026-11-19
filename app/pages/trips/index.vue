@@ -8,6 +8,11 @@
  * M5 (FR-PWA-03): the list is snapshotted for offline reading — opening
  * the installed app offline shows the last viewed trips, clearly marked
  * as possibly outdated, and each trip's screens have their own snapshots.
+ *
+ * v2.11: two owner-reported offline gaps closed. The trips-list snapshot
+ * is now warmed at app start (app.vue), and when it is still missing the
+ * list is rebuilt from the per-trip snapshots already on the device
+ * instead of dead-ending on "reconnect to load it".
  */
 import { formatDateRange, myBalanceLabel } from '~/lib/trips'
 import {
@@ -15,28 +20,51 @@ import {
   browserOffline,
   isNetworkError,
   readSnapshot,
+  reconstructOfflineTripList,
   saveSnapshot,
   snapshotKey,
 } from '~/lib/offline'
+import type { MyTripSummaryRow } from '~/types/database.types'
 
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Your trips' })
 
 const supabase = useSupabase()
+const user = useSupabaseUser()
 
-type Summary = Database['public']['Functions']['my_trips_summary']['Returns'][number]
+/**
+ * List row: the my_trips_summary shape, with `my_net_minor` relaxed to
+ * nullable — rows rebuilt offline from per-trip snapshots (v2.11) cannot
+ * derive the caller's net balance, and the list hides the badge then.
+ */
+type TripRow = Omit<MyTripSummaryRow, 'my_net_minor'> & { my_net_minor: number | null }
 
-const summaries = ref<Summary[]>([])
+const summaries = ref<TripRow[]>([])
 const exponents = ref<Record<string, number>>({ PHP: 2 })
 const loading = ref(true)
 const loadError = ref('')
 const stale = ref(false)
+/** True when the offline list was rebuilt from per-trip snapshots (v2.11). */
+const reconstructed = ref(false)
 
 function restoreOfflineSnapshot(): boolean {
-  const snap = readSnapshot<Summary[]>(window.localStorage, snapshotKey('expenses', '__trips_list'))
+  const snap = readSnapshot<TripRow[]>(window.localStorage, snapshotKey('expenses', '__trips_list'))
   if (snap) {
     summaries.value = snap.data
     stale.value = true
+    loading.value = false
+    return true
+  }
+  // v2.11 fallback: no list snapshot, but the trips this device opened
+  // still have their own snapshots — rebuild the index from those rather
+  // than dead-ending on "reconnect to load it" (the owner's first
+  // offline encounter). Balance badges are not derivable offline and are
+  // hidden for rebuilt rows.
+  const rebuilt = reconstructOfflineTripList(window.localStorage, user.value?.id)
+  if (rebuilt.length) {
+    summaries.value = rebuilt
+    stale.value = true
+    reconstructed.value = true
     loading.value = false
     return true
   }
@@ -97,7 +125,10 @@ useRealtimeTables(
 const activeTrips = computed(() => summaries.value.filter((s) => s.status === 'active'))
 const archivedTrips = computed(() => summaries.value.filter((s) => s.status === 'archived'))
 
-function balanceBadge(trip: Summary): { variant: 'default' | 'secondary' | 'destructive'; label: string } {
+function balanceBadge(trip: TripRow): { variant: 'default' | 'secondary' | 'destructive'; label: string } {
+  // Rebuilt offline rows carry null — the template hides the badge there;
+  // this guard keeps the helper total for the type checker.
+  if (trip.my_net_minor === null) return { variant: 'secondary', label: '—' }
   const { tone, label } = myBalanceLabel(
     trip.my_net_minor,
     trip.base_currency,
@@ -126,18 +157,27 @@ function balanceBadge(trip: Summary): { variant: 'default' | 'secondary' | 'dest
       Loading your trips…
     </div>
 
-    <!-- Offline snapshot banner (FR-PWA-03: cached data is marked) -->
+    <!-- Offline snapshot banner (FR-PWA-03: cached data is marked).
+         Standalone — the snapshot list below must still render (the
+         v2.11 fix of the owner's report: the banner used to sit in the
+         loading/error v-else chain, which suppressed the list offline). -->
     <p
       v-if="stale && !loadError"
       class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
       role="status"
       data-testid="stale-banner"
     >
-      You're offline — showing your trips as you last viewed them. Recent changes by you or your
-      friends aren't here yet.
+      <template v-if="reconstructed">
+        You're offline — showing the trips you've opened on this device (possibly outdated). Balances
+        and recent changes aren't available offline.
+      </template>
+      <template v-else>
+        You're offline — showing your trips as you last viewed them. Recent changes by you or your
+        friends aren't here yet.
+      </template>
     </p>
 
-    <div v-else-if="loadError" class="grid gap-3 py-16 text-center">
+    <div v-if="loadError" class="grid gap-3 py-16 text-center">
       <p class="text-destructive text-sm" role="alert">{{ loadError }}</p>
       <div><Button variant="outline" @click="load">Try again</Button></div>
     </div>
@@ -176,7 +216,9 @@ function balanceBadge(trip: Summary): { variant: 'default' | 'secondary' | 'dest
               </p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
-              <Badge :variant="balanceBadge(trip).variant">{{ balanceBadge(trip).label }}</Badge>
+              <Badge v-if="trip.my_net_minor !== null" :variant="balanceBadge(trip).variant">{{
+                balanceBadge(trip).label
+              }}</Badge>
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -211,7 +253,9 @@ function balanceBadge(trip: Summary): { variant: 'default' | 'secondary' | 'dest
               </p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
-              <Badge variant="outline">{{ balanceBadge(trip).label }}</Badge>
+              <Badge v-if="trip.my_net_minor !== null" variant="outline">{{
+                balanceBadge(trip).label
+              }}</Badge>
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
