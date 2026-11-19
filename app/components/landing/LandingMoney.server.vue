@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Chapter 3 — Money: receipts drop in, balances fill, the messy tangle
- * of debts collapses into the simplified settle-up list (v2.10, D39;
- * presentation reworked in v2.10-1 so the math visibly tallies).
+ * Chapter 3 — Money: receipts drop in, balances fill, then the
+ * simplified settle-up list lands (v2.10, D39; presentation reworked
+ * in v2.10-1 so the math visibly tallies).
  *
  * Every number is the SPEC §6.6 worked example (the acceptance data):
  * Ana pays the ₱24,000 hotel (₱4,800 each, all 5), Ben the ₱6,000
@@ -14,10 +14,14 @@
  * spells out: Ella→Ana 8,500 · Dan→Ana 5,500 · Dan→Carla 2,000 ·
  * Ben→Carla 4,000 (four payments, everyone lands on ₱0).
  *
+ * v2.10-4: the settle-up beat is back — the v2.10-2 removal is
+ * reverted at the owner's direction, minus the decorative tangle SVG
+ * that used to collapse into the card; that illustration alone stays
+ * gone, the card + the receipt-pose turtle present the payments.
+ *
  * Scrubbed by the --money track timeline; at rest (no SDA / reduced
  * motion / the motion controller's static mode) the receipts sit in a
- * grid, the bars are full and the settle-up card is simply shown — the
- * tangle is decoration and stays hidden outside the scrubbed mode.
+ * grid, the bars are full and the settle-up card is simply shown.
  */
 </script>
 
@@ -99,11 +103,9 @@
           </ul>
         </div>
 
-        <!-- the tangle → the one-line settle-up, presented by the turtle -->
+        <!-- the simplified settle-up, presented by the turtle -->
         <div class="money-settle">
-
-          <!-- the tangle → the simplified settle-up, presented by the turtle.
-               All four §6.6 payments — the reader can tally every debt. -->
+          <!-- All four §6.6 payments — the reader can tally every debt. -->
           <div class="money-settle-row">
             <div class="money-settle-card">
               <h3 class="money-settle-title">4 payments settle everything</h3>
@@ -134,7 +136,10 @@
   --lnd-owe: oklch(0.72 0.13 75);
 }
 
-:global(html.dark) .money {
+/* Same fully-global form as the story shell — a leading
+   ":global(html.dark) .money" would compile to a bare html.dark rule
+   and never beat the direct light value above (fixed in v2.10-2). */
+:global(html.dark .money) {
   --lnd-owe: oklch(0.78 0.12 80);
 }
 
@@ -158,7 +163,7 @@
 
 /* ── Stage ─────────────────────────────────────────────────────────────
    Base (no SDA / reduced motion): everything visible at rest — receipts
-   as a grid, full bars, the settle-up card shown, no tangle. */
+   as a grid, full bars, the settle-up card shown. */
 .money-track {
   max-width: 30rem;
   margin-inline: auto;
@@ -311,12 +316,9 @@
   width: 61%;
 }
 
-/* Settle-up: at rest only the row (card + turtle) shows; the tangle
-   is a scrubbed-mode overlay, never layout space. */
-.money-settle {
-  position: relative;
-}
-
+/* Settle-up: the card + the presenting turtle. The decorative tangle
+   that used to float above this row is gone (v2.10-4) — nothing here
+   reserves overlay space. */
 .money-settle-row {
   display: flex;
   align-items: flex-end;
@@ -377,6 +379,8 @@
 /* ── Scrubbed mode ───────────────────────────────────────────────────── */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
+    /* 240svh again (v2.10-4): the settle-up beat is back, so the
+       runway returns to its v2.10-1 length. */
     .money .money-track {
       height: 240vh;
       height: 240svh;
@@ -419,22 +423,6 @@
       animation: lnd-money-fill 1s var(--ease-ios) both;
       animation-timeline: --money;
       animation-range: cover 46% cover 58%;
-    }
-
-    /* The tangle floats above the settle row (no reserved band),
-       then collapses into it. */
-    .money .money-tangle {
-      display: block;
-      position: absolute;
-      right: 0;
-      bottom: calc(100% - 1.5rem);
-      left: 0;
-      width: 100%;
-      height: auto;
-      opacity: 1;
-      animation: lnd-money-tangle 1s linear both;
-      animation-timeline: --money;
-      animation-range: cover 56% cover 68%;
     }
 
     .money .money-settle-card {
@@ -527,19 +515,6 @@
   }
   to {
     transform: scaleX(1);
-  }
-}
-
-@keyframes lnd-money-tangle {
-  0% {
-    opacity: 0;
-  }
-  30% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.9);
   }
 }
 

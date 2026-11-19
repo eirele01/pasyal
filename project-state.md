@@ -6,7 +6,7 @@ itinerary and live location). Source of truth for requirements:
 substitute. This file is updated at the end of every milestone and read
 before starting the next one.
 
-Last updated: **2026-11-18 — v2.10-3 delivered: one owner-requested change on the v2.10-2 tree — the Itinerary item card now shows one line per fact in the owner's exact order (Title → Time → Location → Description → Open booking → Open in Maps → Edited by; time and location were previously crammed into one meta line, and the booking link hung inline off the title), and every info line clamps at 3 lines (`break-words line-clamp-3` — long titles, place names and pasted descriptions can no longer stretch a card into a wall of text; proven behaviorally: a 6-line title renders at exactly 3 lines in a real browser). The two links are promoted from inline underlined text to compact outlined chips (🎟️ Open booking, 🗺️ Open in Maps — mobile-friendly tap targets, one per line, same primary token so both schemes stay WCAG-safe). Only `app/pages/trips/[id]/itinerary/index.vue` + its `pages.spec.ts` fallout changed (time·place assertion split, link names updated, new row-order + clamp-count contracts); `map.vue`'s own popup link deliberately untouched. Gates: lint 0 · typecheck 0 · vitest 206 · Playwright 44 + 10 env-gated · build green · budget 171.7/300 KB (CSS-class-only change) · vision review light+dark 390×844. NOTE — sandbox recycle #9 hit before this task (the v2.3-era tree snapshot again): restored byte-verified from the delivered `pasyal-v2-10-2.zip` (the stale tree had no extra files — diff empty after copy), node_modules intact, a stale dev server on port 3000 killed first, and the recycle-wiped Playwright Chromium reinstalled. The owner deploys from here.**
+Last updated: **2026-11-18 — v2.10-4 delivered: one owner-requested change on the v2.10-3 tree — the Money chapter's settle-up beat is back: `LandingMoney.server.vue` is reverted to its v2.10-1 form (the "4 payments settle everything" card with all four §6.6 payments, the receipt-pose turtle, the narrating intro, the 240svh scrub track with the original beat map), minus exactly the one thing the owner quoted: the decorative money-tangle SVG (its markup, base rules, scrub overlay and keyframes) stays gone; the v2.10-2 D44 dark-mode selector fix is deliberately kept (reverting it would re-break the dark owes bars). Only `app/components/landing/LandingMoney.server.vue` + its `landing.spec.ts` fallout changed (payments + turtle contracts restored, tangle-absence and the v2.10-2 balances/scenery contracts kept). Gates: lint 0 · typecheck 0 · vitest 206 · Playwright 44 + 10 env-gated · build green · budget 171.7/300 KB (server component, no JS delta) · production-build vision check light+dark 390×844 (card + turtle present, no tangle, 240svh track measured, `--lnd-owe` dark flip intact). The owner deploys from here.**
 
 ---
 
@@ -36,7 +36,65 @@ Last updated: **2026-11-18 — v2.10-3 delivered: one owner-requested change on 
 | **v2.10-1 — owner-review fixes on the landing page (2026-11-16)** | **Exactly four presentational fixes on the v2.10 story, nothing else: Hero — the scroll hint centers under the text column at ≥640 px (it was pinned to the far-left edge on wide screens; on phones it stays bottom-left where the turtle owns the bottom-right) and the hero gains `margin-bottom: clamp(2rem, 7vh, 3.5rem)` before Plan; Plan — the day cards restructure to a fixed day / activity / time stack (grid `1fr` rows, capped width — the owner's sketch) so all three cards share one height and width; Money (D40) — every receipt shows its §6.6 split ("₱4,800 each · all 5"; dinner "₱1,500 each · no Ella"), the settle-up card lists all four payments (Ella→Ana 8,500 · Dan→Ana 5,500 · Dan→Carla 2,000 · Ben→Carla 4,000, "Everyone lands on ₱0 — check the math."), the balance bars get visible warm-sand fills for owes (they read as loading skeletons before), plus short-viewport handling (≤740 px tighter rhythm; ≤600 px the chapter unpins instead of clipping); Map (D41) — members become named person badges (person glyph, live ring, name label; names also in the DOM legend with color chips) and the resting placements repaired. The Offline/Final chapters, `tailwind.css`, app logic, SPEC, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated (the landing content spec extended with the new contracts: split lines, all four payments, plan time lines, marker + legend assertions) · landing+smoke specs green against the production build · build green · budget 171.7/300 KB · landing CSS 5.05 KB gz (budget 8) · SVG 18.2 KB raw (budget 25) · Lighthouse mobile 95 / A11y 100 / BP 100 / LCP 1.22 s · new 6-viewport pinned-stage fit harness (320×568 → 1440×900) all green · before/after vision review (hero, money rest+mid+dark, map light+dark, plan)** |
 | **v2.10-2 — settle-up block removed + animated travel scenery (2026-11-16, owner-requested)** | **Exactly two changes: Money (D42) — the `money-settle` block (the decorative debt-tangle SVG + the "4 payments settle everything" card + the receipt-pose turtle) is removed at the owner's direction ("can you check what is this money-settle do? i think its better to remove it"); the chapter keeps the §6.6 receipts with their split lines and the balances tally, the intro sentence that narrated the tangle→payments beat is rewritten, and the scrub track is shortened 240→200svh with the beats re-mapped to fill the whole pin window; Scenery (D43) — a new `LandingScenery.server.vue` backdrop behind the whole story: two mountain ranges (gradient-faded feet), a river with an animated flow line winding into a lake with breathing ripples, and a two-band ocean lapping along the viewport bottom — ambient `prefers-reduced-motion`-gated loops + SDA `scroll(root)` mountain parallax, `isolation: isolate` on the story root for the z-index -1 layer, WCAG-verified palette both schemes. Fallout fix (D44): the landing's `:global(html.dark) .x` dark rules never applied (the compiler drops the descendant — the recorded D39 caveat); the three task-touched components now use fully-global `:global(html.dark .x)` selectors, so dark mode actually flips the map frame/islands, the owes bars, and the scenery. The Plan/Map/Offline/Final chapters, the turtle, `tailwind.css`, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated (landing spec updated: payments/tangle absence asserted, balances contracts added, scenery presence, turtle count 4→3) · landing+smoke specs green against the production build · build green · budget 171.7/300 KB · landing CSS 4.56 KB gz (budget 8) · SVG 16.87 KB raw (budget 25 — the tangle+turtle removal outweighs the scenery) · Lighthouse mobile 97 / A11y 100 / BP 100 / LCP 1.21 s · vision review (hero/plan/money/final light+dark, desktop fade) · recycle #8 restoration from `/tmp/my-project/zip-archive/pasyal-v2-10-1.zip`** |
 | **v2.10-3 — itinerary card: owner's row order + 3-line clamp (2026-11-18, owner-requested)** | **`app/pages/trips/[id]/itinerary/index.vue` (D45): the item card shows one line per fact in the owner's exact order — Title, Time (own row, 🕒), Location (own row, 📍), Description, Open booking, Open in Maps, Edited by — and every info line clamps at 3 lines (`break-words line-clamp-3`), so long titles/place names/pasted descriptions can no longer stretch a card into a wall of text. The two links promote from inline underlined text to compact outlined chips (🎟️ / 🗺️, one per line, mobile-friendly tap targets, same `primary` token both schemes). pages.spec.ts fallout only: the single time·place line assertion splits into two row assertions, link names follow the new labels, and two new contracts prove the row order (position check on both fixture cards) + the clamp class count. `map.vue`'s own popup link, the form, and every other route deliberately untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated · build green · budget 171.7/300 KB (CSS-class-only change, no JS delta) · real-browser clamp proof (6-line title renders at exactly 3 lines, `-webkit-line-clamp: 3`, 66/22 px) · vision review light+dark at 390×844 with a long-text fixture · recycle #9: tree restored byte-verified from the delivered `pasyal-v2-10-2.zip`, stale port-3000 dev server killed, Playwright Chromium reinstalled** |
+| **v2.10-4 — Money settle-up card restored, tangle kept out (2026-11-18, owner-requested)** | **One change (D46): the owner asked to "revert it back and remove only this illustration" (quoting the money-tangle SVG) — so `LandingMoney.server.vue` returns to its v2.10-1 form (the "4 payments settle everything" card with all four §6.6 payments, the receipt-pose turtle, the intro sentence, the 240svh track + original beat map, the ≤740px settle tweaks) with the tangle illustration alone removed (the SVG, its base rules, the scrubbed overlay + `lnd-money-tangle` keyframes, the `.money-settle` overlay anchor); the v2.10-2 D44 dark selector fix is kept on purpose. `landing.spec.ts` fallout only: the four payments + `.money-settle`/`.money-turtle` presence re-asserted, "Dan pays Ana" back in the 360×640 / reduced-motion / ?landing=static specs, the no-JS turtle count back to ≥4 — the tangle-absence assertion and the v2.10-2 balances/scenery contracts stay. The Itinerary page, the scenery, the Plan/Map/Offline/Final chapters and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated · build green · budget 171.7/300 KB (server component — no JS delta) · production-build vision check light+dark at 390×844: settle card + turtle present, no tangle (the only curve left is the scenery river behind the story), `.money-track` measured 2025.59 px ≈ 2.4 × 844 (240svh back), `--lnd-owe` flips to the dark value (D44 survives) · diff vs the v2-10-3 zip = the component, the spec, this file** |
 | M7 Demo and pilot readiness | Seed data, demo script, privacy pages, pilots | ⬜ Not started | SC-01 |
+
+---
+
+## Current state — v2.10-4 (Money settle-up card restored, tangle kept out, 2026-11-18)
+
+The owner reviewed v2.10-3 and asked for one change (their words): "In
+`app\components\landing\LandingMoney.server.vue`, can you revert it back and
+remove only this illustration." — quoting the `money-tangle` SVG — plus
+"remember to focus only on what task i gave you."
+
+Read against the history: v2.10-2 (D42) removed the whole `money-settle`
+block — the tangle SVG **and** the "4 payments settle everything" card
+**and** the receipt-pose turtle. "Revert it back and remove only this
+illustration" therefore means: bring the chapter back to its v2.10-1 form,
+and from it delete only the tangle. The tangle also stays absent from the
+spec — the v2.10-2 absence assertion is kept, now asserted against the
+restored block.
+
+### What changed (one component + one spec, nothing else)
+
+1. **`app/components/landing/LandingMoney.server.vue` (D46) — the v2.10-1
+   chapter restored, minus the tangle.** The file was rebuilt from the
+   delivered `pasyal-v2-10-1.zip` bytes (guaranteeing a faithful revert:
+   the settle card with all four §6.6 payments, the presenting turtle, the
+   intro sentence, the 240svh track, the original beat map — receipts
+   28–52%, bars 46–58%, card + turtle 64–74% — and the ≤740px
+   short-viewport settle tweaks are all the v2.10-1 delivery again), then
+   exactly the tangle illustration was taken out: the SVG itself (six
+   `tangle-line` arcs + five `tangle-dot` circles), its base rules
+   (`.money-tangle`, `.tangle-line`, `.tangle-dot`), the scrubbed-mode
+   overlay block + the `lnd-money-tangle` keyframes, and the
+   `.money-settle { position: relative }` rule that existed only to anchor
+   that overlay. Two deliberate non-reverts: (a) the v2.10-2 D44 fix stays
+   — `:global(html.dark .money)` — because reverting it would re-break the
+   dark-mode owes-bar color that v2.10-2 fixed; (b) the header comment
+   narrates the v2.10-4 state (revert + tangle removal) instead of the
+   v2.10-1 tangle beat.
+2. **`tests/e2e/landing.spec.ts` (fallout only).** The 390×844 content
+   spec re-asserts the settle card: all four payments, "check the math",
+   `.money-settle`/`.money-turtle` count 1 — and keeps `.money-tangle`
+   count 0. "Dan pays Ana" returns as the small-phone (360×640),
+   reduced-motion and `?landing=static` money witness, and the no-JS
+   mascot count is back to ≥4 (peek, receipt, point, wave). The v2.10-2
+   balances contracts and scenery assertions are untouched — both still
+   hold.
+
+### Verification
+
+lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10
+env-gated · build green · budget 171.7/300 KB (a server component — no JS
+delta). Production-build vision check at 390×844, light + dark: the settle
+card + turtle render, no tangle (the only curve visible is the scenery
+river behind the story — confirmed with a cropped re-check), `.money-track`
+measures 2025.59 px ≈ 2.4 × 844 (the 240svh runway is back), and
+`--lnd-owe` computes to the dark value with `html.dark` (the D44 fix
+survived the revert). Diff vs the v2-10-3 zip = the component, the spec,
+this file — nothing else.
 
 ---
 

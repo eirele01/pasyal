@@ -115,9 +115,10 @@ test.describe('landing @ 390×844', () => {
     }
     // The story beats carry their content: day cards (day / title / time
     // structure, v2.10-1), the §6.6 receipts with their per-expense
-    // splits + the balances tally (v2.10-1; the settle-up card itself
-    // was removed in v2.10-2 — the payments live in the app's Balances
-    // tab), the privacy legend and the PWA line.
+    // splits, the balances tally, and the settle-up card with all four
+    // payments (the card is back in v2.10-4 — the v2.10-2 removal is
+    // reverted; only the tangle illustration stays gone), the privacy
+    // legend and the PWA line.
     await expect(page.getByText('Day 1').first()).toBeVisible()
     await expect(page.getByText('Land in Tagbilaran')).toBeVisible()
     await expect(page.getByText('2 PM')).toBeVisible()
@@ -128,8 +129,16 @@ test.describe('landing @ 390×844', () => {
     await expect(page.locator('.money-balances h3')).toHaveText('Who’s up, who’s down')
     await expect(page.getByText('+₱14,000')).toBeVisible()
     await expect(page.getByText('−₱8,500')).toBeVisible()
-    // The settle-up block is gone (v2.10-2) — no payments list, no tangle.
-    expect(await page.locator('.money-settle').count()).toBe(0)
+    // The settle-up card is back (v2.10-4) with all four §6.6 payments
+    // — and the tangle illustration stays gone.
+    await expect(page.getByText('Ella pays Ana')).toBeVisible()
+    await expect(page.getByText('Dan pays Ana')).toBeVisible()
+    await expect(page.getByText('Dan pays Carla')).toBeVisible()
+    await expect(page.getByText('Ben pays Carla')).toBeVisible()
+    await expect(page.getByText('₱5,500')).toBeVisible()
+    await expect(page.getByText('check the math')).toBeVisible()
+    expect(await page.locator('.money-settle').count()).toBe(1)
+    expect(await page.locator('.money-turtle').count()).toBe(1)
     expect(await page.locator('.money-tangle').count()).toBe(0)
     // The map members are named person badges with a color-chip legend
     // (v2.10-1).
@@ -214,7 +223,7 @@ test.describe('landing @ 360×640', () => {
     for (const heading of CHAPTER_HEADINGS) {
       await expect(page.getByRole('heading', { name: heading })).toBeVisible()
     }
-    await expect(page.getByText('₱4,800 each · all 5')).toBeVisible()
+    await expect(page.getByText('Dan pays Ana')).toBeVisible()
     await expect(page.getByText('Make your first trip.')).toBeVisible()
     await expectNoHorizontalOverflow(page)
   })
@@ -268,13 +277,13 @@ test.describe('landing reduced motion', () => {
     })
     expect(anim).toBe('none')
 
-    // The route is fully drawn at rest and the balances show their nets.
+    // The route is fully drawn at rest and the settle-up card shows.
     const dashOffset = await page.evaluate(() => {
       const el = document.querySelector('.plan-draw') as SVGPathElement | null
       return el ? getComputedStyle(el).strokeDashoffset : 'missing'
     })
     expect(parseFloat(dashOffset!)).toBeCloseTo(0, 0)
-    await expect(page.getByText('+₱14,000')).toBeVisible()
+    await expect(page.getByText('Dan pays Ana')).toBeVisible()
 
     // The scenery is a static painting under reduced motion: present,
     // but none of its ambient loops run.
@@ -299,10 +308,9 @@ test.describe('landing without JavaScript', () => {
     await expect(page.getByRole('link', { name: 'Create your account' }).first()).toBeVisible()
     expect(await page.getByRole('link', { name: 'Create your account' }).count()).toBeGreaterThanOrEqual(2)
     await expect(page.getByText('Installable as an app (PWA) on Android and iPhone.')).toBeVisible()
-    // The mascot is there too (peek, point and wave — the Money chapter
-    // lost its receipt-pose turtle when the settle-up block was removed
-    // in v2.10-2).
-    expect(await page.locator('svg[data-pose]').count()).toBeGreaterThanOrEqual(3)
+    // The mascot is there too (peek, receipt, point and wave — the
+    // receipt-pose turtle came back with the settle-up card, v2.10-4).
+    expect(await page.locator('svg[data-pose]').count()).toBeGreaterThanOrEqual(4)
     // So is the scenery backdrop (mountains, river, lake, ocean).
     expect(await page.locator('.lnd-scenery svg').count()).toBe(1)
   })
@@ -345,6 +353,6 @@ test.describe('landing forced fallback (?landing=static)', () => {
 
     // The whole story is reachable in fallback mode.
     await expect(page.getByRole('heading', { name: 'Make your first trip.' })).toBeVisible()
-    await expect(page.getByText('₱4,800 each · all 5')).toBeVisible()
+    await expect(page.getByText('Dan pays Ana')).toBeVisible()
   })
 })
