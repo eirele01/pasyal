@@ -6,7 +6,7 @@ itinerary and live location). Source of truth for requirements:
 substitute. This file is updated at the end of every milestone and read
 before starting the next one.
 
-Last updated: **2026-11-19 — v2.11 delivered: the owner's two offline reports fixed. (1) The offline trips list — the root cause was a template-chain bug on `/trips` that had been there since M5: the stale banner sat inside the loading/error `v-else` chain, so an offline snapshot restore rendered the "You're offline" banner and NOTHING else — the list was suppressed even with a perfectly good snapshot in storage (the owner's words: "i cannot see the list of my trips. its show the offline warning that i am offline"). The banner is now standalone like the expenses/summary tabs, plus two hardening layers: with the list snapshot missing, the index is rebuilt from the per-trip snapshots already on the device (a new pure, unit-tested `reconstructOfflineTripList`), and `app.vue` warms the trips-list snapshot once per app start when online + signed in (deep-link-only sessions no longer go offline without it). (2) Balances offline (the owner's "TypeError: Failed to fetch" + "what do you think is the best flow or UX? I will go to your recommendation") — implemented recommendation (D47): the same offline contract as every other tab — successful loads snapshot `{balances, settlements, expenses}` under a new `balances` kind; offline / transport failures restore the snapshot under the amber "possibly outdated" banner instead of a raw fetch error; no snapshot → the friendly `OFFLINE_NO_SNAPSHOT` state + Try again; record/confirm/delete payments stay online-only by design and now refuse offline with the shared `OFFLINE_BLOCKED_MESSAGE` at the entry point (the dialog does not even open); balances reload after the offline queue flushes (`useQueueSynced`). Gates: lint 0 · typecheck 0 · vitest 211 (206+5) · Playwright 49 + 10 env-gated (44+5) · build green · budget 172.0/300 KB · a 15/15 production-build offline verification against the real service worker with aborted Supabase requests (trips list offline, rebuild, honest empty state, balances restore, friendly empty, offline record refusal, zero raw transport errors) · 390×844 screenshots pixel-verified (content + amber banner in both). The owner deploys from here.**
+Last updated: **2026-11-21 — v2.12 delivered: the SEO & discoverability pass for the production domain pasyalph.com. The owner's brief: "i already deployed it in production, i want to improve its SEO so it can find it in the internet easily when they research this kind of system, app, web app, features, etc. guide me also what should i do in my end if i need to do something like in google side or other website to improve the marketing or to make this app shows in every surface of the internet." In code (D49): a keyword-bearing landing `<title>` ("Group travel planner & shared expense app · Pasyal", set verbatim with the page-level template disabled — the config's function titleTemplate only applies after hydration, so crawlers were reading bare titles), a feature-rich meta description, canonical + og:url on a new single source of truth `runtimeConfig.public.siteUrl` (default `https://pasyalph.com`, overridable via `NUXT_PUBLIC_SITE_URL`), full Open Graph + `summary_large_image` Twitter cards backed by a generated 1200×630 brand card (`public/images/og-card.png`, PIL-generated from the landing palette — `scripts/generate-og-card.py`, VLM-QA'd), WebApplication JSON-LD (TravelApplication category + featureList + free offer — the machine-readable summary for search and AI answer engines), prerendered `robots.txt` + `sitemap.xml` server routes (one public URL — the landing; the ssr:false session shells and the API proxy stay out of the crawl budget), optional `NUXT_PUBLIC_GOOGLE_SITE_VERIFICATION`/`NUXT_PUBLIC_BING_SITE_VERIFICATION` meta hooks, and the og-card + robots.txt kept out of the SW precache (`globIgnores`). For the owner's side: **`docs/seo-guide.md`** — a prioritized walkthrough (Google Search Console domain verification + sitemap + request indexing, Bing import which covers DuckDuckGo/Yahoo, social debugger re-scrapes, Rich Results test, Vercel domain-redirect hygiene, analytics options, and the marketing surfaces: Product Hunt, communities, PWABuilder/Microsoft Store, directories, later a blog) with a checklist and honest timelines. Gates: lint 0 · typecheck 0 · vitest 211 · Playwright 51 + 10 env-gated (49+2 new SEO specs: the no-JS head contract incl. canonical/OG/Twitter/JSON-LD, and robots.txt/sitemap.xml contents) · build green · budget 172.5/300 KB · a 19/19 production-build SEO verification (`scripts/verify-seo-v212.mjs`: prerendered head tags, both endpoints' bodies + content types, the og-card PNG IHDR 1200×630, the statics on disk, og-card/robots absent from sw.js) · landing+smoke 17/17 against the production build · Lighthouse mobile 89→94 across two runs (the documented 89–97 band; A11y 100 · BP 100 · LCP 1.23–1.33 s). Recycle #11: tree restored from the delivered `pasyal-v2-11.zip`, stale port-3000 server killed, Playwright Chromium 1254 reinstalled.**
 
 ---
 
@@ -38,7 +38,158 @@ Last updated: **2026-11-19 — v2.11 delivered: the owner's two offline reports 
 | **v2.10-3 — itinerary card: owner's row order + 3-line clamp (2026-11-18, owner-requested)** | **`app/pages/trips/[id]/itinerary/index.vue` (D45): the item card shows one line per fact in the owner's exact order — Title, Time (own row, 🕒), Location (own row, 📍), Description, Open booking, Open in Maps, Edited by — and every info line clamps at 3 lines (`break-words line-clamp-3`), so long titles/place names/pasted descriptions can no longer stretch a card into a wall of text. The two links promote from inline underlined text to compact outlined chips (🎟️ / 🗺️, one per line, mobile-friendly tap targets, same `primary` token both schemes). pages.spec.ts fallout only: the single time·place line assertion splits into two row assertions, link names follow the new labels, and two new contracts prove the row order (position check on both fixture cards) + the clamp class count. `map.vue`'s own popup link, the form, and every other route deliberately untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated · build green · budget 171.7/300 KB (CSS-class-only change, no JS delta) · real-browser clamp proof (6-line title renders at exactly 3 lines, `-webkit-line-clamp: 3`, 66/22 px) · vision review light+dark at 390×844 with a long-text fixture · recycle #9: tree restored byte-verified from the delivered `pasyal-v2-10-2.zip`, stale port-3000 dev server killed, Playwright Chromium reinstalled** |
 | **v2.10-4 — Money settle-up card restored, tangle kept out (2026-11-18, owner-requested)** | **One change (D46): the owner asked to "revert it back and remove only this illustration" (quoting the money-tangle SVG) — so `LandingMoney.server.vue` returns to its v2.10-1 form (the "4 payments settle everything" card with all four §6.6 payments, the receipt-pose turtle, the intro sentence, the 240svh track + original beat map, the ≤740px settle tweaks) with the tangle illustration alone removed (the SVG, its base rules, the scrubbed overlay + `lnd-money-tangle` keyframes, the `.money-settle` overlay anchor); the v2.10-2 D44 dark selector fix is kept on purpose. `landing.spec.ts` fallout only: the four payments + `.money-settle`/`.money-turtle` presence re-asserted, "Dan pays Ana" back in the 360×640 / reduced-motion / ?landing=static specs, the no-JS turtle count back to ≥4 — the tangle-absence assertion and the v2.10-2 balances/scenery contracts stay. The Itinerary page, the scenery, the Plan/Map/Offline/Final chapters and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated · build green · budget 171.7/300 KB (server component — no JS delta) · production-build vision check light+dark at 390×844: settle card + turtle present, no tangle (the only curve left is the scenery river behind the story), `.money-track` measured 2025.59 px ≈ 2.4 × 844 (240svh back), `--lnd-owe` flips to the dark value (D44 survives) · diff vs the v2-10-3 zip = the component, the spec, this file** |
 | **v2.11 — offline trips list + balances offline UX (2026-11-19, owner-reported)** | **Two owner reports from real offline use. (1) "i cannot see the list of my trips. its show the offline warning that i am offline" — root cause: since M5 the `/trips` stale banner sat in the loading/error `v-else-if` chain, so an offline snapshot restore showed the banner and suppressed the list entirely (reproduced in the production build; the existing offline e2e asserted banners on the itinerary/expenses tabs, which never had the bug, so it slipped through). Fix (D48): the banner is standalone like the other tabs, plus two hardening layers — `reconstructOfflineTripList` (pure, in `app/lib/offline.ts`, unit-tested ×5) rebuilds the index from the per-trip snapshots already on the device when the list snapshot is missing (my-membership filter, dedupe, newest-first; `my_net_minor` is server-computed so the balance badge is hidden on rebuilt rows, banner says "the trips you've opened on this device"), and `app.vue` warms the `__trips_list` snapshot once per app start when online + signed in. (2) "in Balances Page, it says 'TypeError: Failed to fetch' what do you think is the best flow or UX for this matter? I will go to your recommendation" — implemented recommendation (D47): the same offline contract as every other tab — new `balances` snapshot kind (`{balances, settlements, expenses}` per trip), `browserOffline()` fast path + `isNetworkError` fallback → snapshot restore under the amber banner (no doomed fetches, no retry backoff), transport errors never render raw (no snapshot → `OFFLINE_NO_SNAPSHOT` + Try again; real server errors → "Could not load balances. Please try again."), and record/confirm/delete payments refuse offline with `OFFLINE_BLOCKED_MESSAGE` at the entry point (online-only by design, FR-PWA-04 scope — money writes are not queued). Balances also reload after the offline queue flushes (`useQueueSynced`). Files: `app/pages/trips/index.vue`, `app/pages/trips/[id]/balances.vue`, `app/lib/offline.ts`, `app/app.vue` + the two specs + the two state docs. The landing page, the itinerary card, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 211 (206+5 new reconstruction tests) · mocked Playwright 49 passed + 10 env-gated (44+5 new v2.11 specs: warm, rebuild, balances snapshot restore, balances friendly empty, offline record refusal) · build green · budget 172.0/300 KB (+0.3 KB) · production-build offline verification 15/15 against the real SW with aborted Supabase requests (`scripts/verify-offline-v211.mjs` pattern) · 390×844 screenshots pixel-checked (content + amber banner) · diff vs the v2-10-4 zip = the four app files, the two specs, the two docs · recycle #10: tree restored from the delivered `pasyal-v2-10-4.zip`, stale port-3000 dev server killed, Playwright Chromium 1254 reinstalled** |
+| **v2.12 — SEO & discoverability pass for pasyalph.com (2026-11-21, owner-requested)** | **The app is live in production on the owner's permanent domain; this pass makes it findable. Code (D49): keyword-bearing landing title (verbatim — page-level `titleTemplate: null`, because the config's function template only applies post-hydration and crawlers read the raw HTML), meta description, canonical + og:url from a new `runtimeConfig.public.siteUrl` (default `https://pasyalph.com`, `NUXT_PUBLIC_SITE_URL` override), Open Graph + Twitter `summary_large_image` tags with a generated 1200×630 brand card (`public/images/og-card.png` via `scripts/generate-og-card.py`, landing palette + icon + wordmark, VLM design-QA'd), WebApplication JSON-LD (TravelApplication, featureList, free offer), prerendered `/robots.txt` (landing + /auth crawlable; the ssr:false session shells and the API proxy disallowed) + `/sitemap.xml` (one URL — the landing — build-date lastmod) as Nitro server routes baked static, optional GSC/Bing verification metas via env, og-card + robots.txt excluded from the SW precache. Owner side: **`docs/seo-guide.md`** — GSC (Domain property DNS TXT → sitemap → Request Indexing, honest timelines), Bing import (covers DuckDuckGo/Yahoo), social debuggers, Rich Results test, Vercel canonical-host hygiene, analytics options, Product Hunt / communities / PWABuilder-Store / directories / later-blog marketing surfaces, anti-patterns, maintenance. Files: `app/pages/index.vue`, `nuxt.config.ts`, `server/routes/robots.txt.get.ts` + `sitemap.xml.get.ts` (new), `public/images/og-card.png` (new), `scripts/generate-og-card.py` + `verify-seo-v212.mjs` (new), `tests/e2e/landing.spec.ts` (+2 specs), `.env.example`, `docs/seo-guide.md` (new), `project-state.md`. No app screen, component or behavior touched — head tags, two crawler endpoints and docs only** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 211 · mocked Playwright 51 passed + 10 env-gated (49+2 new SEO specs) · build green · budget 172.5/300 KB (+0.5 KB) · 19/19 production-build SEO verification (`scripts/verify-seo-v212.mjs`) · landing+smoke 17/17 vs the production build · Lighthouse mobile 89 & 94 across two runs (the v2.10-documented 89–97 band; A11y 100 · BP 100 · LCP 1.23–1.33 s) · og-card 1200×630 35 KB, not precached · diff vs the v2-11 zip = the listed files · recycle #11: restored from `pasyal-v2-11.zip`, port-3000 server killed, Chromium 1254 reinstalled** |
 | M7 Demo and pilot readiness | Seed data, demo script, privacy pages, pilots | ⬜ Not started | SC-01 |
+
+---
+
+## Current state — v2.12 (SEO & discoverability pass for pasyalph.com, 2026-11-21)
+
+The app is deployed in production on the owner's permanent domain. Their
+brief: "i want to improve its SEO so it can find it in the internet
+easily when they research this kind of system, app, web app, features,
+etc. guide me also what should i do in my end if i need to do something
+like in google side or other website to improve the marketing or to make
+this app shows in every surface of the internet." Domain given:
+**pasyalph.com**. Two halves: the code half (done here) and the owner
+half (the new `docs/seo-guide.md`).
+
+### The code half (D49) — what a crawler or feed scraper now receives
+
+* **Landing `<title>`, verbatim in the raw HTML.** "Group travel planner
+  & shared expense app · Pasyal" — the queries people actually type
+  (group travel planner / shared expense app) plus the brand. Discovery
+  while implementing: the config-level `titleTemplate` is a *function*,
+  which unhead only applies after hydration — the prerendered HTML
+  carries the bare page title (this was true of every page since M0;
+  harmless for app screens, but the landing is the page crawlers read).
+  The landing now sets `titleTemplate: null` and the complete title, so
+  no-JS crawlers, link scrapers and hydrated browsers all see the same
+  string.
+* **Meta description.** "Plan group trips with friends and skip the
+  spreadsheet — shared expenses, itinerary and live location in one
+  installable web app." (137 chars, feature keywords, honest.)
+* **Canonical + og:url + the single source of truth.** New
+  `runtimeConfig.public.siteUrl` (default `https://pasyalph.com`,
+  override `NUXT_PUBLIC_SITE_URL`) feeds the canonical link, og:url and
+  both crawler endpoints — one origin string, no drift. The landing
+  also keeps its `useSeoMeta` title/description contract from v2.10.
+* **Open Graph + Twitter.** og:title "Pasyal — Group travel, sorted",
+  og:type website, og:site_name, og:image (1200×630 + width/height/alt),
+  og:locale en, and `twitter:card summary_large_image` — the same card
+  for Facebook, LinkedIn, WhatsApp, iMessage, Slack, Discord, Telegram
+  and X. This is what the shared-link preview renders everywhere.
+* **The card itself.** `public/images/og-card.png` — generated by the
+  committed `scripts/generate-og-card.py` (PIL; landing palette via a
+  proper OKLCH→sRGB conversion — `--lnd-water`/`--lnd-island` — the
+  emerald app icon, "Pasyal" wordmark, the hero tagline, the feature
+  line, pasyalph.com). 35 KB, 1200×630; composition VLM-design-QA'd
+  (all text legible, centered stack, icon crisp — one 12 px polish
+  applied). Deliberately excluded from the SW precache
+  (`globIgnores '**/images/og-card.png'`) — social assets don't belong
+  in the offline shell.
+* **WebApplication JSON-LD.** name, url, description,
+  `applicationCategory: TravelApplication`, `operatingSystem: Any`,
+  `inLanguage: en`, a four-item `featureList` (splits/balances,
+  itinerary, live location, offline PWA) and a free `offers` entry —
+  the machine-readable summary Google and AI answer engines surface for
+  "group travel expense app"-style queries. Inline `<script>` under
+  the existing CSP (`script-src 'unsafe-inline'` was already required
+  by the Nuxt bootstrap). No aggregateRating — fake ratings are a
+  penalty risk; none ships.
+* **`/robots.txt` + `/sitemap.xml`** — Nitro server routes
+  (`server/routes/robots.txt.get.ts`, `sitemap.xml.get.ts`), baked to
+  static files at build time (`nitro.prerender.routes`) so crawlers get
+  CDN responses, no cold start. robots: the landing and `/auth`
+  crawlable (sign-in/sign-up are real SSR pages; "pasyal sign in" is a
+  legitimate navigational query), the ssr:false session shells
+  (`/trips`, `/account`, `/settings`, `/join`) and the API proxy
+  disallowed — a crawler would see empty divs there, so the directive
+  keeps crawl budget on the real content. sitemap: exactly one URL (the
+  landing) with a build-date `lastmod` that re-stamps on every deploy;
+  changefreq/priority omitted (Google documents that it ignores them).
+* **Verification metas, optional.** `NUXT_PUBLIC_GOOGLE_SITE_VERIFICATION`
+  / `NUXT_PUBLIC_BING_SITE_VERIFICATION` each emit their provider's
+  meta tag when set (Vercel env), nothing when unset — the no-DNS-access
+  fallback for URL-prefix verification. The guide recommends the Domain
+  property via DNS TXT as primary; these hooks cover plan B.
+* **What deliberately did NOT change.** Every app screen, every
+  component, every behavior, the manifest (already correct since v2.2),
+  the landing story markup (only its `<head>` grew), and every other
+  route — the diff vs the v2-11 zip is the head meta, two crawler
+  endpoints, the card asset, the two scripts, the spec additions, the
+  env example and the two docs.
+
+### The owner half — `docs/seo-guide.md`
+
+Prioritized, concrete, with honest time costs: (1) Google Search
+Console — Domain property via DNS TXT at the registrar, sitemap submit,
+Request Indexing, what "indexed" timelines actually look like (days to
+~2 weeks for a new domain; rankings weeks-to-months), plus the
+Vercel-side canonical-host check (pasyalph.com primary, www + vercel.app
+redirecting); (2) Bing Webmaster import — one click, and it covers
+Bing + DuckDuckGo + Yahoo; (3) social debuggers — Facebook Sharing
+Debugger and LinkedIn Post Inspector re-scrapes so the card renders on
+first share; (4) Rich Results test for the JSON-LD; (5) analytics
+options (Plausible/Umami recommended over GA4 for a cookieless pilot —
+wiring deliberately deferred to a future task per focus); (6) the
+marketing surfaces — Product Hunt launch prep, the communities (PH
+travel groups, r/PHTravel, travel Discords), PWABuilder → Microsoft
+Store (a real app-store surface + backlink), alternative.to listings,
+and the later-compounding blog on the domain; (7) anti-patterns
+(keyword stuffing, bought links, fake-review markup) and (8) a
+maintenance cadence (per-deploy nothing manual — sitemap re-stamps
+itself; monthly GSC checks; regenerate the card on brand changes).
+
+### Files changed
+
+* `app/pages/index.vue` — the SEO head block (title/description/OG/
+  Twitter/JSON-LD/canonical, `titleTemplate: null`).
+* `nuxt.config.ts` — `siteUrl` runtime config, the optional
+  verification metas, `nitro.prerender.routes` for the two endpoints,
+  the SW `globIgnores`.
+* `server/routes/robots.txt.get.ts` + `server/routes/sitemap.xml.get.ts`
+  — new (the only server-side additions; everything else stays out).
+* `public/images/og-card.png` — new asset;
+  `scripts/generate-og-card.py` — its committed generator.
+* `scripts/verify-seo-v212.mjs` — new: 19-check production-build
+  verification (head tags in the prerendered HTML, both endpoints'
+  status/content-type/body contracts, the PNG IHDR 1200×630, the
+  prerendered statics on disk, and og-card/robots absent from sw.js
+  while the manifest stays precached).
+* `tests/e2e/landing.spec.ts` — +2 specs in a new `landing SEO (v2.12)`
+  describe: the no-JS head contract (canonical, og:*, twitter:*,
+  JSON-LD parse + fields, the exact title) and the robots/sitemap
+  endpoint contracts.
+* `.env.example` — the three new optional vars, documented.
+* `docs/seo-guide.md` — new: the owner's side of the task.
+* `project-state.md` (this file).
+
+### Verification
+
+lint 0 · typecheck 0 · vitest **211** (unchanged — no unit surface
+touched) · mocked Playwright **51 passed + 10 env-gated** (49 + 2 new
+SEO specs) · build green · budget **172.5 / 300 KB** (+0.5 KB — the
+landing page chunk carries the head tags; zero JS added to any app
+route). Beyond the gates: the **19/19 production-build SEO
+verification** (`node scripts/verify-seo-v212.mjs` against the real
+`.output` server) — including the finding-and-fix loop it caught: the
+prerendered title initially lacked the template suffix (raw-HTML
+crawlers would have read "Group travel planner & shared expense app"
+without "· Pasyal") and the prerendered robots.txt initially landed in
+the SW precache; both fixed and re-verified. landing+smoke re-run
+against the production build: **17/17**. Lighthouse mobile on the
+production build: **89 then 94** across two runs (within the v2.10's
+documented 89–97 band; A11y **100** · BP **100** · LCP 1.33/1.23 s —
+Core Web Vitals, the ranking signal, stays green). The OG card:
+programmatic element checks + VLM design QA (all PASS). Diff vs the
+v2-11 zip = exactly the files listed above.
+
+Delivered on top of recycle #11: the sandbox had reverted the tree to a
+pre-v2.10 state; it was restored from the delivered `pasyal-v2-11.zip`
+(byte-verified against the zip), the stale port-3000 dev server was
+killed, and Playwright's Chromium 1254 was reinstalled before the gates
+ran.
 
 ---
 
@@ -1387,6 +1538,7 @@ date inputs verified fine after that; footer text cleared the tab bar
 | D44 | **Landing dark palettes actually apply now (v2.10-2 fallout fix):** a LEADING `:global(html.dark) .x` in scoped CSS compiles to a bare `html.dark { vars }` rule — the SFC compiler drops the descendant selector (the exact toolchain behavior recorded as a D39 rejection note), and the direct light values defined on the element itself always beat the inherited dark ones. Consequence since v2.10: `--lnd-water/island/guide/dot*`, `--lnd-owe` and the scenery palette never flipped — dark mode showed a pale map frame with light legend text on it (unreadable) and light-mode islands. Fix: fully-global selectors `:global(html.dark .x)` in the three components the v2.10-2 task touches (Story, Money, Scenery) — specificity (0,2,1) beats the scoped light rules (0,2,0); verified computed-value flips in the running app. LandingTurtle deliberately keeps its old form this round (its light/dark values are visually near-identical — not part of the owner's two tasks); flagged for the next pass that touches that file | v2.10-2 (2026-11-16) | Found while wiring D43: the scenery's dark palette refused to apply, and the debug (`getComputedStyle` before/after) exposed the pre-existing breakage in the shell's palette | Engineering decision |
 | D47 | **Balances gets the full offline contract (v2.11):** the owner reported the raw "TypeError: Failed to fetch" on the Balances page offline and asked for the best flow/UX, pre-approving the recommendation. Implemented: read offline from a new `balances` snapshot (`{balances, settlements, expenses}`) under the standard amber "possibly outdated" banner; `browserOffline()` fast path + `isNetworkError` fallback (no doomed fetches, no supabase-js retry backoff hang); transport errors never render raw — no snapshot shows `OFFLINE_NO_SNAPSHOT` + Try again, real server errors show friendly copy; record/confirm/delete payments stay online-only by design (money writes are NOT queued — D13's FR-PWA-04 scope) and refuse offline with `OFFLINE_BLOCKED_MESSAGE` at the entry point (the record dialog does not open); `useQueueSynced` reloads the numbers after the offline queue flushes. This closes the v2.9 audit's gap #2 and polishes its gap #3 for the balances actions | v2.11 (2026-11-19) | Owner request: "in Balances Page, it says 'TypeError: Failed to fetch' what do you think is the best flow or UX for this matter ? I will go to your recommendation." | Owner direction (pre-approved) |
 | D48 | **The offline trips list renders again — and reconstructs when the list snapshot is missing (v2.11):** the owner's "i cannot see the list of my trips" was a template-chain bug present since M5: the `/trips` stale banner sat inside the loading/error `v-else-if` chain, so an offline snapshot restore rendered the banner and suppressed the list. Fix layers: (1) the banner is standalone like the expenses/summary tabs (the snapshot list renders under it — new e2e contracts assert the cards, which is why this survived five versions of green offline suites); (2) `reconstructOfflineTripList` (pure, unit-tested) rebuilds the index from the per-trip snapshots already on the device when the list snapshot is missing — my-membership filter, dedupe, newest-first, `my_net_minor: null` (server-computed) so the balance badge is hidden on rebuilt rows and the banner says "the trips you've opened on this device"; (3) `app.vue` warms the `__trips_list` snapshot once per app start when online + signed in, so deep-link-only sessions no longer go offline without it | v2.11 (2026-11-19) | Owner report: "my first encounter during my offline mode is i cannot see the list of my trips. its show the offline warning that i am offline." — reproduced in the production build before the fix | Owner report (bug) |
+| D49 | **The SEO surface for pasyalph.com (v2.12):** the owner asked to make the production app findable "when they research this kind of system, app, web app, features" and for guidance on the Google/marketing side. Implemented: the landing page carries the full crawler contract in its prerendered HTML — keyword-bearing title set verbatim (page-level `titleTemplate: null` after discovering the config's function template only applies post-hydration, so raw-HTML crawlers were reading bare titles), meta description, canonical + og:url from a single-source `runtimeConfig.public.siteUrl` (default `https://pasyalph.com`, `NUXT_PUBLIC_SITE_URL` override), Open Graph + `summary_large_image` Twitter tags with a generated 1200×630 brand card (`public/images/og-card.png`, PIL generator committed, excluded from the SW precache), and WebApplication JSON-LD (TravelApplication + featureList + free offer, no aggregateRating — fake ratings are a penalty risk). New prerendered Nitro routes `/robots.txt` (landing + `/auth` crawlable; the ssr:false session shells and the API disallowed — crawlers would see empty divs there) and `/sitemap.xml` (one URL — the landing — build-date lastmod). Optional `NUXT_PUBLIC_GOOGLE_SITE_VERIFICATION`/`NUXT_PUBLIC_BING_SITE_VERIFICATION` metas as the no-DNS verification fallback. The owner's half is `docs/seo-guide.md` (GSC domain verification + sitemap + request indexing, Bing import covering DuckDuckGo/Yahoo, social debugger re-scrapes, analytics options, Product Hunt/PWABuilder/communities/blog marketing surfaces, anti-patterns, maintenance). Verified by `scripts/verify-seo-v212.mjs` (19 checks against the production build) + 2 new e2e specs | v2.12 (2026-11-21) | Owner request: "i want to improve its SEO so it can find it in the internet easily when they research this kind of system, app, web app, features, etc. guide me also what should i do in my end… domain name: pasyalph.com" | Owner request (SEO) |
 
 ---
 

@@ -14,6 +14,10 @@
  *     IntersectionObserver reveal path, on the true fallback layout.
  *   • Session CTAs — signed-out and signed-in (mocked Supabase) in BOTH
  *     the hero and the final chapter.
+ *   • SEO head (v2.12, D49) — no-JS: the served HTML carries the
+ *     canonical, Open Graph, Twitter card and WebApplication JSON-LD
+ *     tags; /robots.txt and /sitemap.xml answer with the pasyalph.com
+ *     contracts.
  *
  * Mocked Supabase follows the smoke.spec.ts pattern (unsigned-format
  * JWT + mocked token endpoint).
@@ -354,5 +358,86 @@ test.describe('landing forced fallback (?landing=static)', () => {
     // The whole story is reachable in fallback mode.
     await expect(page.getByRole('heading', { name: 'Make your first trip.' })).toBeVisible()
     await expect(page.getByText('Dan pays Ana')).toBeVisible()
+  })
+})
+
+// ── SEO head (v2.12, D49) — the crawler contract ────────────────────
+test.describe('landing SEO (v2.12)', () => {
+  // What a crawler or link-preview scraper sees: no JavaScript, just the
+  // served HTML. The site origin is the runtimeConfig default
+  // (https://pasyalph.com) — the same single source robots.txt/sitemap
+  // read.
+  test.use({ viewport: { width: 390, height: 844 }, javaScriptEnabled: false })
+
+  test('the served HTML carries canonical, Open Graph, Twitter and JSON-LD tags', async ({ page }) => {
+    await page.goto('/')
+
+    const head = await page.evaluate(() => {
+      const meta = (sel: string) => document.querySelector(sel)?.getAttribute('content') ?? ''
+      return {
+        title: document.title,
+        description: meta('meta[name="description"]'),
+        canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href') ?? '',
+        ogTitle: meta('meta[property="og:title"]'),
+        ogType: meta('meta[property="og:type"]'),
+        ogUrl: meta('meta[property="og:url"]'),
+        ogSiteName: meta('meta[property="og:site_name"]'),
+        ogImage: meta('meta[property="og:image"]'),
+        ogImageAlt: meta('meta[property="og:image:alt"]'),
+        twitterCard: meta('meta[name="twitter:card"]'),
+        twitterImage: meta('meta[name="twitter:image"]'),
+        ldJson: document.querySelector('script[type="application/ld+json"]')?.textContent ?? '',
+      }
+    })
+
+    // Keyword-bearing title (renders through the nuxt.config template).
+    expect(head.title).toBe('Group travel planner & shared expense app · Pasyal')
+    expect(head.description).toContain('group trips')
+    expect(head.description).toContain('shared expenses')
+
+    // Canonical + Open Graph, all on the production origin.
+    const site = 'https://pasyalph.com'
+    expect(head.canonical).toBe(`${site}/`)
+    expect(head.ogUrl).toBe(`${site}/`)
+    expect(head.ogTitle).toBe('Pasyal — Group travel, sorted')
+    expect(head.ogType).toBe('website')
+    expect(head.ogSiteName).toBe('Pasyal')
+    expect(head.ogImage).toBe(`${site}/images/og-card.png`)
+    expect(head.ogImageAlt).toContain('Pasyal')
+
+    // Twitter/X card (also read by several scrapers ahead of og:*).
+    expect(head.twitterCard).toBe('summary_large_image')
+    expect(head.twitterImage).toBe(`${site}/images/og-card.png`)
+
+    // WebApplication JSON-LD parses and carries the feature list.
+    const ld = JSON.parse(head.ldJson) as Record<string, unknown>
+    expect(ld['@type']).toBe('WebApplication')
+    expect(ld.name).toBe('Pasyal')
+    expect(ld.url).toBe(`${site}/`)
+    expect(ld.applicationCategory).toBe('TravelApplication')
+    expect(Array.isArray(ld.featureList)).toBe(true)
+  })
+
+  test('robots.txt and sitemap.xml answer with the pasyalph.com contracts', async ({ request }) => {
+    const robots = await request.get('/robots.txt')
+    expect(robots.status()).toBe(200)
+    expect(robots.headers()['content-type']).toContain('text/plain')
+    const robotsBody = await robots.text()
+    // The public surface is open; the session-gated shells and the API
+    // proxy are kept out of the crawl budget.
+    expect(robotsBody).toContain('Allow: /')
+    for (const path of ['/trips', '/account', '/settings', '/join', '/api/']) {
+      expect(robotsBody).toContain(`Disallow: ${path}`)
+    }
+    expect(robotsBody).toContain('Sitemap: https://pasyalph.com/sitemap.xml')
+
+    const sitemap = await request.get('/sitemap.xml')
+    expect(sitemap.status()).toBe(200)
+    expect(sitemap.headers()['content-type']).toContain('application/xml')
+    const sitemapBody = await sitemap.text()
+    // Exactly one URL — the landing page (see the route's doc block).
+    expect(sitemapBody).toContain('<loc>https://pasyalph.com/</loc>')
+    expect(sitemapBody).toMatch(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/)
+    expect(sitemapBody.match(/<loc>/g)).toHaveLength(1)
   })
 })

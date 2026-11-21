@@ -27,6 +27,15 @@ function intEnv(value: string | undefined, fallback: number): number {
 //     (FR-LOC-*); camera/microphone/payment are explicitly off.
 //   * Dev relaxes connect-src for the Vite HMR websocket (localhost).
 const isDev = process.env.NODE_ENV === 'development'
+
+// ── SEO (v2.12, D49) ─────────────────────────────────────────────────
+// Optional search-console verification tokens. When set (Vercel project
+// env), each renders its provider's verification <meta> on every page;
+// unset (the default) nothing is emitted. Google: Domain-property DNS
+// TXT verification is still the recommended primary (docs/seo-guide.md) —
+// these metas are the no-DNS-access fallback for URL-prefix properties.
+const googleVerification = process.env.NUXT_PUBLIC_GOOGLE_SITE_VERIFICATION ?? ''
+const bingVerification = process.env.NUXT_PUBLIC_BING_SITE_VERIFICATION ?? ''
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
@@ -86,6 +95,15 @@ export default defineNuxtConfig({
     strict: true,
   },
 
+  // v2.12 (D49): bake robots.txt + sitemap.xml as static files at build
+  // time (the server routes below define them). Prerendered output is
+  // served from the CDN like any static asset — no cold start for crawlers.
+  nitro: {
+    prerender: {
+      routes: ['/robots.txt', '/sitemap.xml'],
+    },
+  },
+
   // iOS pass (2026-11-12): page transitions — a quiet fade + rise on
   // route changes (see tailwind.css `.page-*`; collapses under
   // prefers-reduced-motion). Nested tab pages render without a
@@ -124,6 +142,12 @@ export default defineNuxtConfig({
     public: {
       // Non-secret project URL (SPEC §1.6) with a safe default.
       supabaseUrl: process.env.SUPABASE_URL ?? 'https://foiltfxiazkfdzuwbvio.supabase.co',
+      // v2.12 (D49): the production origin — the single source of truth
+      // behind the landing page's canonical/og:url, robots.txt and
+      // sitemap.xml. Override with NUXT_PUBLIC_SITE_URL only if the app
+      // is ever served from a different origin (localhost previews,
+      // staging); pasyalph.com is the owner's permanent domain.
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL ?? 'https://pasyalph.com',
       // Publishable (anon) key — browser-safe, protected by RLS.
       supabaseKey: process.env.SUPABASE_KEY ?? '',
       // M3 Leaflet raster tiles (FR-MAP-01): configurable URL + attribution.
@@ -187,6 +211,14 @@ export default defineNuxtConfig({
         { name: 'apple-mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
         { name: 'apple-mobile-web-app-title', content: 'Pasyal' },
+        // v2.12 (D49): search-console verification, emitted only when the
+        // matching env var is set (see the comment block above).
+        ...(googleVerification
+          ? ([{ name: 'google-site-verification', content: googleVerification }] as const)
+          : []),
+        ...(bingVerification
+          ? ([{ name: 'msvalidate.01', content: bingVerification }] as const)
+          : []),
       ],
       link: [
         { rel: 'icon', href: '/icons/icon-64.png' },
@@ -280,6 +312,12 @@ export default defineNuxtConfig({
       // for UPDATES — the new-version banner (FR-PWA-05) stays in charge.
       clientsClaim: true,
       globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,ico,txt,woff2}'],
+      // v2.12 (D49): the og-card is for social feeds and robots.txt for
+      // crawlers — neither belongs in the offline shell, so both stay
+      // out of the first-visit precache download. (The prerendered
+      // robots.txt lands in the globbed output dir, hence the explicit
+      // ignore.)
+      globIgnores: ['**/images/og-card.png', '**/robots.txt'],
       cleanupOutdatedCaches: true,
       runtimeCaching: [
         {
