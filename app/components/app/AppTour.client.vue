@@ -314,7 +314,7 @@ const stepBadge = computed(() => {
         <!-- Waiting for the page / target -->
         <div v-if="!stepReady" class="absolute inset-0 grid place-items-center px-4">
           <div
-            class="bg-background text-foreground border-border rounded-2xl border px-5 py-4 text-sm shadow-lg"
+            class="glass-blur text-foreground rounded-2xl px-5 py-4 text-sm"
             role="status"
           >
             One moment…
@@ -328,7 +328,7 @@ const stepBadge = computed(() => {
             role="dialog"
             aria-modal="true"
             :aria-label="step.title"
-            class="bg-background text-foreground border-border shadow-xl tour-card absolute rounded-2xl border p-5"
+            class="glass-blur text-foreground tour-card absolute rounded-2xl p-5"
             :class="rect ? '' : 'relative w-full max-w-sm'"
             :style="rect ? tooltipStyle : undefined"
             data-testid="tour-tooltip"

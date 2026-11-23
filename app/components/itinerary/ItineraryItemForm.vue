@@ -162,7 +162,7 @@ const previewLink = computed(() =>
       <select
         id="item-day"
         v-model="dayId"
-        class="border-input bg-background h-9 rounded-md border px-3 text-sm"
+        class="field h-9 px-3"
       >
         <option v-for="d in days" :key="d.id" :value="d.id">
           Day {{ d.day_index + 1 }} · {{ d.date }}
@@ -191,7 +191,7 @@ const previewLink = computed(() =>
       <select
         id="item-category"
         v-model="category"
-        class="border-input bg-background h-9 rounded-md border px-3 text-sm"
+        class="field h-9 px-3"
       >
         <option v-for="c in ITEM_CATEGORIES" :key="c.value" :value="c.value">
           {{ c.icon }} {{ c.label }}
@@ -221,7 +221,7 @@ const previewLink = computed(() =>
         <ul
           v-if="openSuggestion !== null && suggestions.length"
           ref="listbox"
-          class="bg-background absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border shadow-lg"
+          class="glass-blur absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-xl"
           role="listbox"
         >
           <li

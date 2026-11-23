@@ -318,7 +318,7 @@ function formatDateTime(iso: string): string {
     <!-- FR-PWA-03: totals from the offline snapshot -->
     <p
       v-if="stale"
-      class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+      class="rounded-xl border border-amber-300/80 bg-amber-50/85 px-4 py-3 text-sm text-amber-900 shadow-sm backdrop-blur-sm dark:border-amber-600/40 dark:bg-amber-950/60 dark:text-amber-200"
       role="status"
       data-testid="stale-banner"
     >
@@ -382,9 +382,9 @@ function formatDateTime(iso: string): string {
               </div>
               <!-- Proportion bar: decorative (the amounts carry the info,
                    NFR-UX-04 — never color alone). -->
-              <div class="bg-muted mt-1.5 h-2 w-full overflow-hidden rounded-full" aria-hidden="true">
+              <div class="bg-foreground/[0.08] mt-1.5 h-2 w-full overflow-hidden rounded-full" aria-hidden="true">
                 <div
-                  class="bg-primary h-full rounded-full"
+                  class="bg-primary h-full rounded-full shadow-[inset_0_1px_0_0_var(--btn-sheen)]"
                   :style="{ width: `${percentOfTotal(slice.totalMinor)}%` }"
                 />
               </div>
@@ -405,7 +405,7 @@ function formatDateTime(iso: string): string {
               <li
                 v-for="member in summary.perMember"
                 :key="member.memberId"
-                class="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3"
+                class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/45 px-4 py-3"
                 data-testid="summary-member"
               >
                 <span class="flex min-w-0 items-center gap-3">

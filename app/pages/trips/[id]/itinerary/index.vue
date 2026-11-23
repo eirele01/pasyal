@@ -15,6 +15,17 @@
  * (`break-words line-clamp-3`), so a pasted essay or long place name
  * can no longer stretch a card into a wall of text.
  *
+ * v2-13-3 (owner-requested): the day cards clip their contents to the
+ * rounded silhouette (overflow-hidden — the square-cornered day header
+ * band used to bleed past the rounded corners), and no glass surface on
+ * this page carries backdrop-filter: the day-filter pills sit inside an
+ * overflow-x-auto scroller and Chromium composites backdrop-filter
+ * children of a scroll clip against an unpainted (black) region — the
+ * sharp-cornered black plate the owner saw under the glass. The pills
+ * and the in-card link pills take the resting material (tint, hairline,
+ * highlight, ambient shadow — no blur), which is the design system's
+ * own rule for surfaces nothing scrolls beneath.
+ *
  * M5 (FR-PWA-03/04): offline loads fall back to the last snapshot (marked
  * "possibly outdated"); add/edit item while offline is queued and shows
  * instantly as a pending item (§10.2). Destructive and atomic actions
@@ -133,6 +144,21 @@ function dayItems(dayId: string): MergedItem[] {
   return items.value.filter((i) => i.day_id === dayId)
 }
 
+// ── Day filter (v2.13-2, owner request) ──────────────────────────
+// One scrollable clip line of pills — "All" + one per itinerary day
+// (extra days included) — above the day cards. 'all' shows every day;
+// a day id narrows the list to that day's card. The row renders once
+// there is more than one day to filter (a one-day itinerary has
+// nothing to segment); the pills mirror the map tab's day filter
+// (Button sm, filled = active) so the two screens read as one family.
+const activeDayFilter = ref<'all' | string>('all')
+
+const visibleDays = computed<ItineraryDay[]>(() =>
+  activeDayFilter.value === 'all'
+    ? days.value
+    : days.value.filter((d) => d.id === activeDayFilter.value),
+)
+
 // Offline-queued writes sync in the background: reload when they land
 // (FR-PWA-04 / E2E-08 pattern).
 useQueueSynced(() => {
@@ -144,6 +170,8 @@ async function onRemoveDay(day: ItineraryDay) {
   try {
     await removeDay(day.id)
     notice.value = 'Empty day removed.'
+    // v2.13-2: removing the day the list is filtered to falls back to All.
+    if (activeDayFilter.value === day.id) activeDayFilter.value = 'all'
   } catch (err) {
     actionError.value = (err as Error).message
   }
@@ -213,7 +241,7 @@ useRealtimeTables(
       </Button>
     </div>
 
-    <p v-if="isArchived" class="text-muted-foreground mb-4 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+    <p v-if="isArchived" class="text-muted-foreground mb-4 rounded-xl border border-border/60 bg-muted/40 px-4 py-3 text-sm">
       This trip is archived. The itinerary is read-only.
     </p>
 
@@ -222,7 +250,7 @@ useRealtimeTables(
     <!-- Offline snapshot banner (FR-PWA-03: cached data is marked) ── -->
     <p
       v-if="stale && !loadError"
-      class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+      class="mb-4 rounded-xl border border-amber-300/80 bg-amber-50/85 px-4 py-3 text-sm text-amber-900 shadow-sm backdrop-blur-sm dark:border-amber-600/40 dark:bg-amber-950/60 dark:text-amber-200"
       role="status"
       data-testid="stale-banner"
     >
@@ -230,6 +258,40 @@ useRealtimeTables(
       members made since then aren't here yet.
     </p>
     <p v-if="notice" class="text-primary mb-4 text-sm" role="status">{{ notice }}</p>
+
+    <!-- Day filter (v2.13-2): one scrollable clip line — "All" + every
+         itinerary day. It never wraps; on narrow screens the row scrolls
+         horizontally with the scrollbar hidden (touch/trackpad still
+         scroll it). The filled pill is the active filter; the day cards
+         below narrow to it. -->
+    <div
+      v-if="!loading && !loadError && days.length > 1"
+      class="day-filter -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      role="group"
+      aria-label="Filter itinerary by day"
+      data-testid="itinerary-day-filter"
+    >
+      <Button
+        size="sm"
+        :variant="activeDayFilter === 'all' ? 'default' : 'outline'"
+        class="shrink-0"
+        :aria-pressed="activeDayFilter === 'all'"
+        @click="activeDayFilter = 'all'"
+      >
+        All
+      </Button>
+      <Button
+        v-for="day in days"
+        :key="day.id"
+        size="sm"
+        :variant="activeDayFilter === day.id ? 'default' : 'outline'"
+        class="shrink-0"
+        :aria-pressed="activeDayFilter === day.id"
+        @click="activeDayFilter = day.id"
+      >
+        {{ dayLabel(day.day_index) }}
+      </Button>
+    </div>
 
     <div v-if="loading" class="text-muted-foreground py-10 text-center text-sm">Loading itinerary…</div>
     <div v-else-if="loadError" class="text-destructive py-10 text-center text-sm">{{ loadError }}</div>
@@ -247,13 +309,13 @@ useRealtimeTables(
 
     <div v-else class="grid gap-6">
       <article
-        v-for="day in days"
+        v-for="day in visibleDays"
         :key="day.id"
-        class="rounded-xl border"
+        class="glass overflow-hidden rounded-2xl"
         :data-day-index="day.day_index"
         :data-date="day.date"
       >
-        <header class="bg-muted/40 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+        <header class="bg-foreground/[0.03] dark:bg-foreground/[0.06] flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
           <div>
             <h3 class="font-semibold">{{ dayLabel(day.day_index) }}</h3>
             <p class="text-muted-foreground text-xs">
@@ -284,7 +346,7 @@ useRealtimeTables(
             :data-item-title="item.title"
           >
             <span
-              class="bg-primary/10 text-primary mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold"
+              class="bg-primary/10 text-primary ring-primary/15 shadow-[inset_0_1px_0_0_var(--glass-highlight)] mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ring-1"
               aria-hidden="true"
             >
               {{ items.indexOf(item) + 1 }}
@@ -325,24 +387,26 @@ useRealtimeTables(
               >
                 {{ item.description }}
               </p>
-              <!-- 5 · Open booking (FR-ITN-11) -->
+              <!-- 5 · Open booking (FR-ITN-11) — resting glass (no
+                   backdrop-filter): see the v2-13-3 header note. -->
               <a
                 v-if="item.external_url"
                 :href="item.external_url"
                 target="_blank"
                 rel="noopener"
-                class="text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 mt-1.5 flex w-fit max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium"
+                class="text-primary border-primary/30 bg-primary/10 hover:bg-primary/15 shadow-[inset_0_1px_0_0_var(--glass-highlight)] mt-1.5 flex w-fit max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
               >
                 <span aria-hidden="true">🎟️</span>
                 <span class="truncate">Open booking</span>
               </a>
-              <!-- 6 · Open in Maps (FR-ITN-09) -->
+              <!-- 6 · Open in Maps (FR-ITN-09) — resting glass (no
+                   backdrop-filter): see the v2-13-3 header note. -->
               <a
                 v-if="mapsLink(item)"
                 :href="mapsLink(item)"
                 target="_blank"
                 rel="noopener"
-                class="text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 mt-1.5 flex w-fit max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium"
+                class="text-primary border-primary/30 bg-primary/10 hover:bg-primary/15 shadow-[inset_0_1px_0_0_var(--glass-highlight)] mt-1.5 flex w-fit max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
               >
                 <span aria-hidden="true">🗺️</span>
                 <span class="truncate">Open in Maps</span>
@@ -447,3 +511,19 @@ useRealtimeTables(
     </Dialog>
   </section>
 </template>
+
+<style scoped>
+/* v2-13-3 (owner-requested): the day-filter pills live inside the
+   overflow-x-auto scroller above the day cards. Chromium composites a
+   backdrop-filter child of a scroll clip against the scroller's
+   UNPAINTED overflow region — black in the backdrop texture — so on
+   GPU-rasterized browsers each pill wore a sharp-cornered black plate
+   behind its glass. The pills scroll with the page (nothing passes
+   beneath them), so they take the resting material: same tint,
+   hairline, specular top edge and ambient shadow — no blur, no plate.
+   The active pill is solid (no .glass-btn) and is untouched. */
+.day-filter :deep(.glass-btn) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+</style>

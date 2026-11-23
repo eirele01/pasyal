@@ -18,7 +18,13 @@
  *     fix is low-accuracy, plus clearly-labelled Demo pins (FR-MAP-02,
  *     FR-LOC-07/08/16/15);
  *   * a click-to-place pin mode for the item form (FR-ITN-03);
- *   * a "My location" button (FR-MAP-06) with graceful denial handling.
+ *   * a "My location" button (FR-MAP-06) with graceful denial handling —
+ *     icon-only since v2.13-4 (owner request);
+ *   * edge indicators (v2.13-4, owner request): every stop or member pin
+ *     outside the current view gets a direction chip pinned to the map's
+ *     edge pointing at it; tapping the chip pans there;
+ *   * a ResizeObserver (v2.13-4) so Leaflet re-measures when the page
+ *     sizes the canvas to the viewport (and on rotate/resize).
  */
 import 'leaflet/dist/leaflet.css'
 import type { Circle, Map as LeafletMap, Marker, TileLayer } from 'leaflet'
@@ -55,6 +61,23 @@ export interface TripMapMemberPin {
   /** Small label under the name (e.g. "last seen 3 min ago"). */
   subtitle?: string
   isMe?: boolean
+}
+
+/** v2.13-4: a direction chip for a stop/pin outside the current view. */
+export interface TripMapEdgeIndicator {
+  key: string
+  /** Chip position in container pixels (centered by CSS translate). */
+  x: number
+  y: number
+  /** Compass bearing of the target from the map center, in degrees. */
+  angle: number
+  kind: 'stop' | 'live' | 'stale' | 'demo'
+  /** Stop number or member initial shown next to the arrow. */
+  label: string
+  /** Target name, used for the chip's aria-label. */
+  name: string
+  lat: number
+  lng: number
 }
 
 const props = withDefaults(
@@ -135,6 +158,120 @@ function numberedIcon(L: LeafletModule, n: number) {
   })
 }
 
+// ── Edge indicators (v2.13-4, owner request) ───────────────────────────
+// Every itinerary stop / member pin outside the current viewport gets a
+// small chip on the map's edge with an arrow pointing toward it (and the
+// stop number or member initial). Tapping pans straight to the target.
+const edgeIndicators = ref<TripMapEdgeIndicator[]>([])
+const EDGE_CHIP_LIMIT = 8
+// Keep the chips clear of the floating controls: Leaflet's zoom control
+// (top-left, ~70px), the permission/status card (top), the share toggle
+// (lower-left) and the locate button + attribution (lower-right).
+const EDGE_PAD = { top: 84, right: 56, bottom: 76, left: 64 }
+const EDGE_KIND_CLASS: Record<TripMapEdgeIndicator['kind'], string> = {
+  stop: 'bg-[#047857]', // the numbered-stop green
+  live: 'bg-[#2563eb]', // the member blue
+  stale: 'bg-[#9ca3af]', // greyed after 2 min (FR-LOC-08)
+  demo: 'bg-[#a78bfa]', // the demo violet
+}
+const EDGE_KIND_NAME: Record<TripMapEdgeIndicator['kind'], string> = {
+  stop: 'stop',
+  live: 'member',
+  stale: 'member (last seen)',
+  demo: 'demo member',
+}
+
+let edgeFrame: number | null = null
+
+/** rAF-throttled update — Leaflet fires 'move' on every pan frame. */
+function scheduleEdgeUpdate() {
+  if (edgeFrame !== null || !map) return
+  edgeFrame = window.requestAnimationFrame(() => {
+    edgeFrame = null
+    updateEdgeIndicators()
+  })
+}
+
+function updateEdgeIndicators() {
+  if (!map || !ready.value) {
+    edgeIndicators.value = []
+    return
+  }
+  const size = map.getSize()
+  const w = size.x
+  const h = size.y
+  if (w === 0 || h === 0) {
+    edgeIndicators.value = []
+    return
+  }
+  const cx = w / 2
+  const cy = h / 2
+
+  interface EdgeTarget {
+    key: string
+    lat: number
+    lng: number
+    kind: TripMapEdgeIndicator['kind']
+    label: string
+    name: string
+  }
+  const targets: EdgeTarget[] = []
+  // Members first: "where is Dan right now?" is the live question.
+  for (const pin of props.memberPins) {
+    targets.push({
+      key: `pin:${pin.id}`,
+      lat: pin.lat,
+      lng: pin.lng,
+      kind: pin.isDemo ? 'demo' : pin.status === 'stale' ? 'stale' : 'live',
+      label: pin.initial,
+      name: pin.name,
+    })
+  }
+  for (const m of props.markers) {
+    targets.push({
+      key: `stop:${m.id}`,
+      lat: m.lat,
+      lng: m.lng,
+      kind: 'stop',
+      label: String(m.number),
+      name: m.title,
+    })
+  }
+
+  const found: TripMapEdgeIndicator[] = []
+  for (const t of targets) {
+    const p = map.latLngToContainerPoint([t.lat, t.lng])
+    // On-screen (with a small halo margin) → no chip.
+    if (p.x >= -32 && p.x <= w + 32 && p.y >= -32 && p.y <= h + 32) continue
+
+    const dx = p.x - cx
+    const dy = p.y - cy
+    // Parametric clip: where the center→target ray leaves the padded box.
+    let tMax = Infinity
+    if (dx > 0) tMax = Math.min(tMax, (w - EDGE_PAD.right - cx) / dx)
+    else if (dx < 0) tMax = Math.min(tMax, (EDGE_PAD.left - cx) / dx)
+    if (dy > 0) tMax = Math.min(tMax, (h - EDGE_PAD.bottom - cy) / dy)
+    else if (dy < 0) tMax = Math.min(tMax, (EDGE_PAD.top - cy) / dy)
+    if (!Number.isFinite(tMax) || tMax < 0) tMax = 0
+    const x = Math.min(Math.max(cx + tMax * dx, EDGE_PAD.left), w - EDGE_PAD.right)
+    const y = Math.min(Math.max(cy + tMax * dy, EDGE_PAD.top), h - EDGE_PAD.bottom)
+    const angle = (Math.atan2(dy, dx) * 180) / Math.PI
+    found.push({ ...t, x, y, angle })
+  }
+  // Cap the row: live members first, then stale, demo, and stops.
+  const kindOrder = { live: 0, stale: 1, demo: 2, stop: 3 }
+  found.sort((a, b) => kindOrder[a.kind] - kindOrder[b.kind])
+  edgeIndicators.value = found.slice(0, EDGE_CHIP_LIMIT)
+}
+
+function panToIndicator(ind: TripMapEdgeIndicator) {
+  if (!map) return
+  map.setView([ind.lat, ind.lng], Math.max(map.getZoom(), 13), { animate: true })
+}
+
+// ── Lifecycle ──────────────────────────────────────────────────────────
+let resizeObserver: ResizeObserver | null = null
+
 onMounted(async () => {
   if (!container.value) return
   const L = await loadLeaflet()
@@ -159,18 +296,37 @@ onMounted(async () => {
     emit('pick', e.latlng.lat, e.latlng.lng)
   })
 
+  // v2.13-4: chips follow every pan/zoom/resize frame…
+  map.on('move zoom resize', scheduleEdgeUpdate)
+
+  // …and Leaflet must re-measure when the page sizes the canvas to the
+  // viewport (v2.13-4 full-height map) or the device rotates.
+  resizeObserver = new ResizeObserver(() => {
+    map?.invalidateSize()
+    scheduleEdgeUpdate()
+  })
+  resizeObserver.observe(container.value)
+
   applyMarkers()
   applyMemberPins()
   applyPicked()
   ready.value = true
+  scheduleEdgeUpdate()
 })
 
 onUnmounted(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  if (edgeFrame !== null) {
+    window.cancelAnimationFrame(edgeFrame)
+    edgeFrame = null
+  }
   map?.remove()
   map = null
   markersById.clear()
   memberPinsById.clear()
   pickMarker = null
+  edgeIndicators.value = []
 })
 
 // ── Itinerary markers: add/update/remove in place (FR-ITN-08) ──────────
@@ -202,6 +358,7 @@ async function applyMarkers() {
   }
 
   fitToMarkers()
+  scheduleEdgeUpdate()
 }
 
 function fitToMarkers() {
@@ -312,6 +469,7 @@ async function applyMemberPins() {
       memberPinsById.set(pin.id, { marker, circle })
     }
   }
+  scheduleEdgeUpdate()
 }
 
 watch(
@@ -412,24 +570,74 @@ defineExpose({ fitToMarkers, fitToGroup })
        z-50). Without it the location-consent sheet on the Map tab rendered
        BEHIND the map tiles (owner-reported 2026-11-13). -->
   <div class="relative isolate h-full w-full">
-    <div ref="container" class="h-full w-full rounded-xl" aria-label="Trip map" role="application" />
+    <div ref="container" class="h-full w-full rounded-2xl" aria-label="Trip map" role="application" />
     <p v-if="!ready" class="text-muted-foreground absolute inset-0 grid place-items-center text-sm">
       Loading map…
     </p>
-    <Button
+
+    <!-- ── Edge indicators (v2.13-4, owner request) ───────────────────
+         Direction chips for stops/pins outside the current view: an
+         arrow rotated toward the target + the stop number or member
+         initial, in the pin's own color. Tap to pan there. -->
+    <div
+      v-if="ready && edgeIndicators.length > 0"
+      class="pointer-events-none absolute inset-0 z-[600]"
+      aria-label="Off-screen places and members"
+    >
+      <button
+        v-for="ind in edgeIndicators"
+        :key="ind.key"
+        type="button"
+        class="pasyal-edge-indicator pointer-events-auto absolute flex h-9 items-center gap-1.5 rounded-full border-2 border-white pr-2.5 pl-2 text-white shadow-[0_2px_6px_rgb(0_0_0/0.35)] transition-transform duration-150 ease-ios hover:scale-105 active:scale-[0.97] outline-none focus-visible:ring-[3px] focus-visible:ring-white/70"
+        :class="EDGE_KIND_CLASS[ind.kind]"
+        :style="{
+          left: `${ind.x}px`,
+          top: `${ind.y}px`,
+          transform: 'translate(-50%, -50%)',
+        }"
+        :aria-label="`Show ${ind.name} (${EDGE_KIND_NAME[ind.kind]}) on the map`"
+        @click="panToIndicator(ind)"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          class="size-4 shrink-0"
+          :style="{ transform: `rotate(${ind.angle}deg)` }"
+          aria-hidden="true"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-5-5 5 5-5 5" />
+        </svg>
+        <span class="text-[11px] font-bold leading-none">{{ ind.label }}</span>
+      </button>
+    </div>
+
+    <!-- ── My location (FR-MAP-06) — v2.13-4: icon-only circular glass
+         button (owner request: "make the 'My location' button only"). -->
+    <button
       v-if="showLocate && ready"
       type="button"
-      size="sm"
-      variant="outline"
-      class="absolute right-3 bottom-6 z-[500] shadow"
       aria-label="Center the map on my location"
+      class="absolute right-3 bottom-6 z-[500] grid size-11 place-items-center rounded-full border border-border/70 bg-background/85 text-foreground shadow-[inset_0_1px_0_0_var(--glass-highlight),0_6px_18px_-8px_rgb(3_18_12_/_0.3)] backdrop-blur-md transition-all duration-200 ease-ios outline-none hover:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-[0.97]"
       @click="locateMe"
     >
-      ◎ My location
-    </Button>
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.75"
+        class="size-5"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="6" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+        <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      </svg>
+    </button>
     <p
       v-if="locateMessage"
-      class="bg-background/95 absolute bottom-6 left-3 z-[500] max-w-[80%] rounded-lg border px-3 py-1.5 text-xs shadow"
+      class="bg-background/95 absolute bottom-20 left-3 z-[500] max-w-[80%] rounded-lg border px-3 py-1.5 text-xs shadow"
       role="status"
     >
       {{ locateMessage }}

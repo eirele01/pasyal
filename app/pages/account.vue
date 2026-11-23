@@ -110,7 +110,7 @@ const rows = computed(() => [
     <Card>
       <CardHeader class="items-center text-center">
         <span
-          class="bg-primary text-primary-foreground flex size-16 items-center justify-center rounded-full text-2xl font-semibold"
+          class="bg-primary text-primary-foreground flex size-16 items-center justify-center rounded-full text-2xl font-semibold shadow-[inset_0_1px_0_0_var(--btn-sheen)]"
           aria-hidden="true"
         >
           {{ initial }}
@@ -160,7 +160,7 @@ const rows = computed(() => [
           </form>
         </div>
 
-        <dl class="divide-y rounded-lg border">
+        <dl class="divide-y divide-border/60 rounded-xl border border-border/70 bg-card/40">
           <div
             v-for="row in rows"
             :key="row.label"

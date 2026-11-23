@@ -55,7 +55,7 @@ function entryLabel(entry: { op: { kind: string } & Record<string, unknown> }): 
     <span
       v-if="!online"
       data-testid="offline-badge"
-      class="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900"
+      class="inline-flex items-center gap-1.5 rounded-full border border-amber-300/80 bg-amber-50/85 px-2.5 py-1 text-xs font-medium text-amber-900 shadow-sm backdrop-blur-sm dark:border-amber-600/40 dark:bg-amber-950/60 dark:text-amber-200"
       role="status"
     >
       <span class="inline-block size-2 rounded-full bg-amber-500" aria-hidden="true" />
@@ -71,7 +71,7 @@ function entryLabel(entry: { op: { kind: string } & Record<string, unknown> }): 
       :class="
         summary.failed > 0
           ? 'border-destructive/40 bg-destructive/10 text-destructive'
-          : 'border-border bg-muted/60 text-muted-foreground'
+          : 'border-border/70 bg-card/70 text-muted-foreground shadow-[inset_0_1px_0_0_var(--glass-highlight)] backdrop-blur-sm'
       "
       :aria-label="`Open pending offline changes (${summary.total} queued${summary.failed ? `, ${summary.failed} failed` : ''})`"
       @click="panelOpen = true"
@@ -90,7 +90,7 @@ function entryLabel(entry: { op: { kind: string } & Record<string, unknown> }): 
       <div
         v-if="pwa?.needRefresh"
         data-testid="update-banner"
-        class="bg-primary text-primary-foreground fixed inset-x-0 top-14 z-[90] mx-auto flex w-fit max-w-[94vw] items-center gap-3 rounded-full px-4 py-2 text-sm shadow-lg"
+        class="bg-primary text-primary-foreground fixed inset-x-0 top-14 z-[90] mx-auto flex w-fit max-w-[94vw] items-center gap-3 rounded-full px-4 py-2 text-sm shadow-[inset_0_1px_0_0_var(--btn-sheen),0_8px_24px_-8px_rgb(4_47_46/0.45)]"
         role="status"
       >
         A new version of Pasyal is available.

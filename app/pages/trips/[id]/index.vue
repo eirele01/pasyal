@@ -204,7 +204,7 @@ async function leave(force: boolean) {
         </form>
 
         <!-- iOS pass (2026-11-12): inset grouped list on the card. -->
-        <ul class="divide-y divide-border/70 rounded-xl border bg-card">
+        <ul class="divide-y divide-border/60 rounded-xl border border-border/60 bg-card/45">
           <li
             v-for="member in members"
             :key="member.id"

@@ -78,8 +78,11 @@ watch(dialogOpen, (open) => {
       v-bind="delegatedProps"
       :class="
         cn(
-          'bg-background pointer-events-auto fixed z-50 grid gap-4 border border-border/70 shadow-2xl ease-ios duration-300',
-          'inset-x-0 bottom-0 max-h-[88svh] w-full max-w-lg overflow-y-auto rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]',
+          // v2-13 liquid glass: the sheet is the .glass-blur material —
+          // the page content dims and melts behind the frosted panel
+          // (blur + saturation + specular top edge), iOS-sheet anatomy.
+          'glass-blur pointer-events-auto fixed z-50 grid gap-4 ease-ios duration-300',
+          'inset-x-0 bottom-0 max-h-[88svh] w-full max-w-lg overflow-y-auto rounded-t-[1.75rem] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]',
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom',
           'sm:inset-x-auto sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:max-h-[calc(100svh-4rem)] sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl sm:p-6 sm:duration-200',
           'sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=closed]:slide-out-to-bottom-0',
@@ -103,7 +106,7 @@ watch(dialogOpen, (open) => {
       <slot />
 
       <DialogClose
-        class="ring-offset-background focus:ring-ring absolute right-3.5 top-3.5 grid size-8 place-items-center rounded-full opacity-60 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+        class="ring-offset-background focus:ring-ring absolute right-3.5 top-3.5 grid size-8 place-items-center rounded-full opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
       >
         <svg
           viewBox="0 0 24 24"

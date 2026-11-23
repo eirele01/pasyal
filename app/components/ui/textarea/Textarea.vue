@@ -14,8 +14,8 @@ const model = defineModel<string | number>()
     v-model="model"
     :class="
       cn(
-        'border-input placeholder:text-muted-foreground focus-visible:ring-ring dark:bg-input/30 flex min-h-[72px] w-full rounded-lg border bg-transparent px-3.5 py-2.5 text-base shadow-xs transition-[color,box-shadow] outline-none md:text-sm',
-        'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+        // v2-13 liquid glass: the shared .field material, same as Input.
+        'field flex min-h-[72px] w-full px-3.5 py-2.5 text-base md:text-sm',
         'disabled:cursor-not-allowed disabled:opacity-50',
         props.class,
       )

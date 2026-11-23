@@ -355,12 +355,20 @@ test('the expenses tab lists expenses with payers and totals (UI-06, FR-EXP-10)'
   await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
   await expect(page.getByText('₱24,000.00').first()).toBeVisible()
   await expect(page.getByText('paid by Ana · 5 sharers')).toBeVisible()
-  await expect(page.getByLabel('Filter by category')).toBeVisible()
-  await expect(page.getByLabel('Filter by payer')).toBeVisible()
   await expect(page.getByLabel('Search by title')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Add expense' })).toBeVisible()
 
+  // v2-13 Expenses pass: the filters live in a glass sheet behind the
+  // Filter button — category · member · date range (FR-EXP-10 unchanged).
+  await page.getByRole('button', { name: 'Filter' }).click()
+  await expect(page.getByLabel('Filter by category')).toBeVisible()
+  await expect(page.getByLabel('Filter by member')).toBeVisible()
+  await expect(page.getByLabel('From date')).toBeVisible()
+  await expect(page.getByLabel('To date')).toBeVisible()
+
   // Filters combine: category + title search (FR-EXP-10).
+  await page.getByLabel('Filter by category').selectOption('lodging')
+  await page.getByRole('button', { name: 'Done' }).click()
   await page.getByLabel('Search by title').fill('shinkansen')
   await expect(page.getByText('No expenses match the filters')).toBeVisible()
   await page.getByLabel('Search by title').fill('hotel')
@@ -631,6 +639,17 @@ test('the itinerary shows days, ordered items, edited-by and maps links (UI-10, 
 
   // Extra-day management (FR-ITN-01).
   await expect(page.getByRole('button', { name: '+ Add day' })).toBeVisible()
+
+  // v2.13-2: the day-filter clip line — "All" + one pill per day; the
+  // filled pill narrows the day cards to that day, "All" restores them.
+  const dayFilter = page.getByRole('group', { name: 'Filter itinerary by day' })
+  await expect(dayFilter).toBeVisible()
+  await expect(dayFilter.getByRole('button', { name: 'All' })).toBeVisible()
+  await page.getByRole('button', { name: 'Day 2' }).click()
+  await expect(page.getByRole('heading', { name: 'Day 1' })).toBeHidden()
+  await expect(page.getByRole('heading', { name: 'Day 2' })).toBeVisible()
+  await page.getByRole('button', { name: 'All' }).click()
+  await expect(page.getByRole('heading', { name: 'Day 1' })).toBeVisible()
 })
 
 test('the map shows numbered markers, a day filter and attribution (UI-12, FR-ITN-08, FR-MAP-01/04)', async ({
@@ -659,7 +678,50 @@ test('the map shows numbered markers, a day filter and attribution (UI-12, FR-IT
   await page.getByRole('button', { name: 'Day 2' }).click()
   await expect(page.locator('.pasyal-marker')).toHaveCount(1)
   await expect(page.locator('.pasyal-marker').first()).toContainText('4')
-  await expect(page.getByText('Itinerary stops (numbered in trip order)')).toBeVisible()
+
+  // v2.13-4 (owner request): the legend row is gone — the pins' own
+  // colors speak for themselves now, and the off-screen chips (below)
+  // carry their own color and label.
+  await expect(page.getByText('Itinerary stops (numbered in trip order)')).toHaveCount(0)
+
+  // v2.13-4: the day filter is one scrollable clip line (mirroring the
+  // itinerary page) — the pills never wrap; the row is a single line.
+  const filterBox = await page
+    .getByRole('group', { name: 'Filter markers by day' })
+    .boundingBox()
+  expect(filterBox).toBeTruthy()
+  expect(filterBox!.height).toBeLessThan(50)
+
+  // v2.13-4: the canvas is measured to fill the viewport down to the
+  // docked tab bar instead of a fixed 65vh ("whole screen as possible").
+  const mapBox = await page.getByTestId('map-container').boundingBox()
+  const tabBarBox = await page.getByRole('navigation', { name: 'Trip sections' }).boundingBox()
+  expect(mapBox).toBeTruthy()
+  expect(tabBarBox).toBeTruthy()
+  expect(mapBox!.height).toBeGreaterThan(350)
+  expect(mapBox!.y + mapBox!.height).toBeLessThanOrEqual(tabBarBox!.y + 2)
+
+  // v2.13-4: the locate control is icon-only ("make the 'My location'
+  // button only") — the crosshair keeps its accessible name, the text
+  // label is gone.
+  const locate = page.getByRole('button', { name: 'Center the map on my location' })
+  await expect(locate).toBeVisible()
+  await expect(locate).not.toContainText('My location')
+
+  // v2.13-4: pan the lone stop off-screen and a direction chip appears
+  // on the map's edge pointing at it; tapping the chip pans straight
+  // back to the target and the chip row empties.
+  const startX = mapBox!.x + mapBox!.width / 2
+  const startY = mapBox!.y + mapBox!.height / 2 + 80 // clear of the centered marker
+  const drag = mapBox!.width / 2 + 60
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(startX - drag, startY, { steps: 12 })
+  await page.mouse.up()
+  const chips = page.locator('.pasyal-edge-indicator')
+  await expect(chips.first()).toBeVisible({ timeout: 5_000 })
+  await chips.first().click()
+  await expect(chips).toHaveCount(0, { timeout: 5_000 })
 })
 
 test('the add-item form renders place search, the day select and the pin map (UI-11, FR-ITN-03)', async ({
@@ -840,14 +902,17 @@ test('the map renders member pins: live, greyed with last-seen, hidden after 30 
   await expect(danPin).toHaveClass(/stale/)
   await expect(danPin).toContainText('last seen')
 
-  // The visually distinct pin types are labelled in the legend (FR-MAP-02).
-  await expect(page.getByText('Members sharing location')).toBeVisible()
+  // v2.13-4 (owner request): the legend row and the "In the app now"
+  // presence line are gone — the pins' own colors, labels and last-seen
+  // subtitles carry the story now.
+  await expect(page.getByText('Members sharing location')).toHaveCount(0)
+  await expect(page.getByText(/In the app now/)).toHaveCount(0)
 
   // Fit to group is available with pins on screen (FR-MAP-05).
   await expect(page.getByTestId('fit-to-group')).toBeEnabled()
 })
 
-test('the sharing toggle asks for consent before the browser prompt, then shows the banner (FR-LOC-02/03/11, UI-13)', async ({
+test('the sharing toggle asks for consent before the browser prompt, then shows the banner on the Members tab (FR-LOC-02/03/11, UI-13)', async ({
   page,
 }) => {
   await signInWithLocations(page, `/trips/${TRIP_ID}/map`)
@@ -855,6 +920,16 @@ test('the sharing toggle asks for consent before the browser prompt, then shows 
 
   const toggle = page.getByTestId('sharing-toggle')
   await expect(toggle).toHaveAttribute('data-state', 'unchecked')
+
+  // v2.13-4: the toggle is a floating on/off button pinned to the map's
+  // lower-left corner (the card is gone).
+  const toggleBox = await toggle.boundingBox()
+  const mapBox = await page.getByTestId('map-container').boundingBox()
+  expect(toggleBox).toBeTruthy()
+  expect(mapBox).toBeTruthy()
+  expect(toggleBox!.x).toBeGreaterThanOrEqual(mapBox!.x - 1)
+  expect(toggleBox!.x).toBeLessThanOrEqual(mapBox!.x + 24)
+  expect(toggleBox!.y).toBeGreaterThan(mapBox!.y + mapBox!.height - 120)
 
   // First switch-on opens the plain-language consent dialog — BEFORE any
   // browser permission prompt fires (FR-LOC-03).
@@ -874,20 +949,44 @@ test('the sharing toggle asks for consent before the browser prompt, then shows 
 
   // Confirming switches sharing on: the flag update succeeds against the
   // mock, the geolocation watcher starts (permission granted, so the
-  // browser prompt path is exercised) and the persistent banner appears
-  // (FR-LOC-11). Ana now sees her own live pin too (FR-LOC-07).
+  // browser prompt path is exercised) and Ana now sees her own live pin
+  // too (FR-LOC-07).
   await toggle.click()
   await expect(page.getByTestId('location-consent')).toBeVisible()
   await page.getByTestId('consent-share').click()
   await expect(toggle).toHaveAttribute('data-state', 'checked', { timeout: 10_000 })
-  await expect(page.getByTestId('sharing-banner')).toBeVisible()
-  await expect(page.getByTestId('sharing-banner')).toContainText('Sharing location: visible to trip members')
+  // v2.13-4: the confirmation is a floating toast now (owner request).
+  await expect(page.getByTestId('map-toast')).toContainText('Location sharing on')
   await expect(page.locator('[data-testid="member-pin-' + M.ana + '"]')).toBeVisible({ timeout: 10_000 })
 
-  // Consent is remembered: switching off and on again goes straight through.
+  // v2.13-5 (owner request): the sharing banner renders ONLY on the
+  // Members tab — never on the map (or any other) trip tab.
+  await expect(page.getByTestId('sharing-banner')).toHaveCount(0)
+
+  // The banner still states who can see the position while sharing is on
+  // (FR-LOC-11) — on the Members tab (the trip home). Client-side tab
+  // switch: the wrapper keeps the banner component mounted, so the v-if
+  // itself must react to the route change.
+  await page.getByRole('link', { name: 'Members' }).click()
+  await expect(page).toHaveURL(new RegExp(`/trips/${TRIP_ID}/?$`))
+  await expect(page.getByTestId('sharing-banner')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('sharing-banner')).toContainText('Sharing location: visible to trip members')
+  await expect(page.getByTestId('sharing-banner')).toContainText('It stops when you close the app or switch sharing off')
+
+  // Consent is remembered: switching off and on again goes straight
+  // through, each flip confirmed by its own toast (v2.13-4). The banner
+  // follows the sharing flag on the Members tab (v2.13-5).
+  await page.getByRole('link', { name: 'Map' }).click()
+  await expect(page.getByRole('heading', { name: 'Map' })).toBeVisible()
   await toggle.click()
+  await expect(page.getByTestId('map-toast')).toContainText('Location sharing off')
+  await page.getByRole('link', { name: 'Members' }).click()
   await expect(page.getByTestId('sharing-banner')).not.toBeVisible()
+  await page.getByRole('link', { name: 'Map' }).click()
+  await expect(page.getByRole('heading', { name: 'Map' })).toBeVisible()
   await toggle.click()
+  await expect(page.getByTestId('map-toast')).toContainText('Location sharing on')
+  await page.getByRole('link', { name: 'Members' }).click()
   await expect(page.getByTestId('sharing-banner')).toBeVisible()
 })
 
@@ -912,7 +1011,9 @@ test('demo mode in settings adds clearly-labelled simulated pins that never touc
   await expect(page.locator('.pasyal-member-pin')).toHaveCount(5, { timeout: 15_000 })
   await expect(page.locator('.pasyal-member-pin.demo')).toHaveCount(3)
   await expect(page.locator('.pasyal-member-pin.demo').first()).toContainText('Demo')
-  await expect(page.getByText('Demo members (simulated)')).toBeVisible()
+  // v2.13-4: the demo legend chip went with the legend row; the pins
+  // themselves still carry the "· Demo" label (checked above).
+  await expect(page.getByText('Demo members (simulated)')).toHaveCount(0)
 })
 
 // ══════════════════════════════════════════════════════════════════════

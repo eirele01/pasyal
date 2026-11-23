@@ -6,8 +6,7 @@ itinerary and live location). Source of truth for requirements:
 substitute. This file is updated at the end of every milestone and read
 before starting the next one.
 
-Last updated: **2026-11-21 — v2.12 delivered: the SEO & discoverability pass for the production domain pasyalph.com. The owner's brief: "i already deployed it in production, i want to improve its SEO so it can find it in the internet easily when they research this kind of system, app, web app, features, etc. guide me also what should i do in my end if i need to do something like in google side or other website to improve the marketing or to make this app shows in every surface of the internet." In code (D49): a keyword-bearing landing `<title>` ("Group travel planner & shared expense app · Pasyal", set verbatim with the page-level template disabled — the config's function titleTemplate only applies after hydration, so crawlers were reading bare titles), a feature-rich meta description, canonical + og:url on a new single source of truth `runtimeConfig.public.siteUrl` (default `https://pasyalph.com`, overridable via `NUXT_PUBLIC_SITE_URL`), full Open Graph + `summary_large_image` Twitter cards backed by a generated 1200×630 brand card (`public/images/og-card.png`, PIL-generated from the landing palette — `scripts/generate-og-card.py`, VLM-QA'd), WebApplication JSON-LD (TravelApplication category + featureList + free offer — the machine-readable summary for search and AI answer engines), prerendered `robots.txt` + `sitemap.xml` server routes (one public URL — the landing; the ssr:false session shells and the API proxy stay out of the crawl budget), optional `NUXT_PUBLIC_GOOGLE_SITE_VERIFICATION`/`NUXT_PUBLIC_BING_SITE_VERIFICATION` meta hooks, and the og-card + robots.txt kept out of the SW precache (`globIgnores`). For the owner's side: **`docs/seo-guide.md`** — a prioritized walkthrough (Google Search Console domain verification + sitemap + request indexing, Bing import which covers DuckDuckGo/Yahoo, social debugger re-scrapes, Rich Results test, Vercel domain-redirect hygiene, analytics options, and the marketing surfaces: Product Hunt, communities, PWABuilder/Microsoft Store, directories, later a blog) with a checklist and honest timelines. Gates: lint 0 · typecheck 0 · vitest 211 · Playwright 51 + 10 env-gated (49+2 new SEO specs: the no-JS head contract incl. canonical/OG/Twitter/JSON-LD, and robots.txt/sitemap.xml contents) · build green · budget 172.5/300 KB · a 19/19 production-build SEO verification (`scripts/verify-seo-v212.mjs`: prerendered head tags, both endpoints' bodies + content types, the og-card PNG IHDR 1200×630, the statics on disk, og-card/robots absent from sw.js) · landing+smoke 17/17 against the production build · Lighthouse mobile 89→94 across two runs (the documented 89–97 band; A11y 100 · BP 100 · LCP 1.23–1.33 s). Recycle #11: tree restored from the delivered `pasyal-v2-11.zip`, stale port-3000 server killed, Playwright Chromium 1254 reinstalled.**
-
+Last updated: **2026-11-23 — v2.13-5 delivered (`pasyal-v2-13-5.zip`): one owner-requested improvement on top of the v2.13-4 baseline — the FR-LOC-11 "Sharing location" banner ("📍 Sharing location: visible to trip members. It stops when you close the app or switch sharing off.") now renders ONLY on the Members tab (`/trips/{id}`, the trip home — route-exact, mirroring the wrapper's isActive and the v2-13-2 owner-actions rule) and no longer on the other trip tabs (Map, Itinerary, Expenses, Balances and their child pages). The live-location engine mount is untouched: the trip wrapper still mounts `LiveLocationStatus.client.vue` on every trip screen, so the private realtime channel, persisted-position seeding and the geolocation watcher keep running across tabs — only the visible paragraph is gated by one added `isMembersPage` computed in the component's existing v-if. The v2-13-4 map affordances (lower-left on/off toggle + on/off toasts) are unchanged. Gates re-run: lint 0 · typecheck 0 · vitest 212 · mocked Playwright 51 + 10 env-gated (the consent spec now asserts the banner is absent on the map, present with both its sentences on the Members tab after a real client-side tab switch, and gone/back on the Members tab across the off/on flips; e2e-07's three banner checks moved to Members-tab visits). Sandbox recycle #15 recovery before the work: tree restored byte-verified from `zip-archive/pasyal-v2-13-4.zip` (the sandbox had reverted to a pre-v2.13 snapshot), stale port-3000 dev server killed, Playwright Chromium 1254 reinstalled, `nuxt prepare` re-run.**
 ---
 
 ## Milestones (SPEC §14.2)
@@ -39,7 +38,288 @@ Last updated: **2026-11-21 — v2.12 delivered: the SEO & discoverability pass f
 | **v2.10-4 — Money settle-up card restored, tangle kept out (2026-11-18, owner-requested)** | **One change (D46): the owner asked to "revert it back and remove only this illustration" (quoting the money-tangle SVG) — so `LandingMoney.server.vue` returns to its v2.10-1 form (the "4 payments settle everything" card with all four §6.6 payments, the receipt-pose turtle, the intro sentence, the 240svh track + original beat map, the ≤740px settle tweaks) with the tangle illustration alone removed (the SVG, its base rules, the scrubbed overlay + `lnd-money-tangle` keyframes, the `.money-settle` overlay anchor); the v2.10-2 D44 dark selector fix is kept on purpose. `landing.spec.ts` fallout only: the four payments + `.money-settle`/`.money-turtle` presence re-asserted, "Dan pays Ana" back in the 360×640 / reduced-motion / ?landing=static specs, the no-JS turtle count back to ≥4 — the tangle-absence assertion and the v2.10-2 balances/scenery contracts stay. The Itinerary page, the scenery, the Plan/Map/Offline/Final chapters and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 206 · mocked Playwright 44 passed + 10 env-gated · build green · budget 171.7/300 KB (server component — no JS delta) · production-build vision check light+dark at 390×844: settle card + turtle present, no tangle (the only curve left is the scenery river behind the story), `.money-track` measured 2025.59 px ≈ 2.4 × 844 (240svh back), `--lnd-owe` flips to the dark value (D44 survives) · diff vs the v2-10-3 zip = the component, the spec, this file** |
 | **v2.11 — offline trips list + balances offline UX (2026-11-19, owner-reported)** | **Two owner reports from real offline use. (1) "i cannot see the list of my trips. its show the offline warning that i am offline" — root cause: since M5 the `/trips` stale banner sat in the loading/error `v-else-if` chain, so an offline snapshot restore showed the banner and suppressed the list entirely (reproduced in the production build; the existing offline e2e asserted banners on the itinerary/expenses tabs, which never had the bug, so it slipped through). Fix (D48): the banner is standalone like the other tabs, plus two hardening layers — `reconstructOfflineTripList` (pure, in `app/lib/offline.ts`, unit-tested ×5) rebuilds the index from the per-trip snapshots already on the device when the list snapshot is missing (my-membership filter, dedupe, newest-first; `my_net_minor` is server-computed so the balance badge is hidden on rebuilt rows, banner says "the trips you've opened on this device"), and `app.vue` warms the `__trips_list` snapshot once per app start when online + signed in. (2) "in Balances Page, it says 'TypeError: Failed to fetch' what do you think is the best flow or UX for this matter? I will go to your recommendation" — implemented recommendation (D47): the same offline contract as every other tab — new `balances` snapshot kind (`{balances, settlements, expenses}` per trip), `browserOffline()` fast path + `isNetworkError` fallback → snapshot restore under the amber banner (no doomed fetches, no retry backoff), transport errors never render raw (no snapshot → `OFFLINE_NO_SNAPSHOT` + Try again; real server errors → "Could not load balances. Please try again."), and record/confirm/delete payments refuse offline with `OFFLINE_BLOCKED_MESSAGE` at the entry point (online-only by design, FR-PWA-04 scope — money writes are not queued). Balances also reload after the offline queue flushes (`useQueueSynced`). Files: `app/pages/trips/index.vue`, `app/pages/trips/[id]/balances.vue`, `app/lib/offline.ts`, `app/app.vue` + the two specs + the two state docs. The landing page, the itinerary card, and every other route untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 211 (206+5 new reconstruction tests) · mocked Playwright 49 passed + 10 env-gated (44+5 new v2.11 specs: warm, rebuild, balances snapshot restore, balances friendly empty, offline record refusal) · build green · budget 172.0/300 KB (+0.3 KB) · production-build offline verification 15/15 against the real SW with aborted Supabase requests (`scripts/verify-offline-v211.mjs` pattern) · 390×844 screenshots pixel-checked (content + amber banner) · diff vs the v2-10-4 zip = the four app files, the two specs, the two docs · recycle #10: tree restored from the delivered `pasyal-v2-10-4.zip`, stale port-3000 dev server killed, Playwright Chromium 1254 reinstalled** |
 | **v2.12 — SEO & discoverability pass for pasyalph.com (2026-11-21, owner-requested)** | **The app is live in production on the owner's permanent domain; this pass makes it findable. Code (D49): keyword-bearing landing title (verbatim — page-level `titleTemplate: null`, because the config's function template only applies post-hydration and crawlers read the raw HTML), meta description, canonical + og:url from a new `runtimeConfig.public.siteUrl` (default `https://pasyalph.com`, `NUXT_PUBLIC_SITE_URL` override), Open Graph + Twitter `summary_large_image` tags with a generated 1200×630 brand card (`public/images/og-card.png` via `scripts/generate-og-card.py`, landing palette + icon + wordmark, VLM design-QA'd), WebApplication JSON-LD (TravelApplication, featureList, free offer), prerendered `/robots.txt` (landing + /auth crawlable; the ssr:false session shells and the API proxy disallowed) + `/sitemap.xml` (one URL — the landing — build-date lastmod) as Nitro server routes baked static, optional GSC/Bing verification metas via env, og-card + robots.txt excluded from the SW precache. Owner side: **`docs/seo-guide.md`** — GSC (Domain property DNS TXT → sitemap → Request Indexing, honest timelines), Bing import (covers DuckDuckGo/Yahoo), social debuggers, Rich Results test, Vercel canonical-host hygiene, analytics options, Product Hunt / communities / PWABuilder-Store / directories / later-blog marketing surfaces, anti-patterns, maintenance. Files: `app/pages/index.vue`, `nuxt.config.ts`, `server/routes/robots.txt.get.ts` + `sitemap.xml.get.ts` (new), `public/images/og-card.png` (new), `scripts/generate-og-card.py` + `verify-seo-v212.mjs` (new), `tests/e2e/landing.spec.ts` (+2 specs), `.env.example`, `docs/seo-guide.md` (new), `project-state.md`. No app screen, component or behavior touched — head tags, two crawler endpoints and docs only** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 211 · mocked Playwright 51 passed + 10 env-gated (49+2 new SEO specs) · build green · budget 172.5/300 KB (+0.5 KB) · 19/19 production-build SEO verification (`scripts/verify-seo-v212.mjs`) · landing+smoke 17/17 vs the production build · Lighthouse mobile 89 & 94 across two runs (the v2.10-documented 89–97 band; A11y 100 · BP 100 · LCP 1.23–1.33 s) · og-card 1200×630 35 KB, not precached · diff vs the v2-11 zip = the listed files · recycle #11: restored from `pasyal-v2-11.zip`, port-3000 server killed, Chromium 1254 reinstalled** |
+| **v2.13 — liquid glass UI/UX pass (2026-11-21, owner-requested)** | **The owner asked for the iOS-26 "liquid glass" look across the whole app ("make all the information, details, value is easy to read and understand, and all the buttons, toggle, cards, and other functions and design should be consistent in all pages"), uploading 7 current-app screenshots as reference ("that doesn't mean that is the final design, i want you to assess it. it just i want to improve the UI/UX… i trust you") and asking not to break function ("focus on the design and not in the function or logic"). Implemented as a four-material design system (D50) in `tailwind.css`: `.glass` (translucent resting surfaces — cards, list groups, the expenses stat strip, empty states; deliberately NO backdrop-filter), `.glass-blur` (frosted floating surfaces — sheets/dialogs, the tour card, the place-search dropdown, 64% mix over the scrim), `.glass-btn` (one shared outline/secondary control material with one hover/active fill) and `.ios-material` redefined as the liquid-glass chrome — all sharing new `--glass-border/highlight/shadow/shadow-float` + `--btn-sheen` tokens (light: white glass, specular top edge, on a mint-washed canvas; dark: smoked glass, moonlit 8% rim) plus two ≤9% emerald radial canvas washes on `body` that give the translucency something to glow against. Consistency pass over every surface: the Card/Badge/Button/Input/Textarea/Switch/DialogContent/EmptyState primitives wear the materials (pill buttons keep the 0.97 press-scale and gain the sheen; ONE `.field` material for every input/select/textarea app-wide including every raw `<select>`; the sheet is frosted glass with 28 px corners and the grabber; the switch keeps UISwitch anatomy with a rim-highlighted track); the trip tab bar becomes the signature **floating glass capsule** (detached from the edge, `rounded-[1.625rem]`, trip content scrolls beneath the blur; page clearance pb-24→pb-28); the expenses toolbar becomes a glass stat strip (₱ total in bold tabular figures + expense count + member-initial cluster — the owner's reference layout); the trips-list balance badge moves UNDER the meta line (the reference layout; kills the wrap crowding); the amber offline banners get one shared glass treatment WITH dark variants (they had none); rows inside cards sit in `bg-card/45` wells; itinerary link-chips become glass pills; the map frame gets a bezel. **The dark scheme goes live**: new `app/plugins/color-mode.client.ts` toggles `.dark` on `<html>` from `prefers-color-scheme` (until v2-13 nothing ever set the class — the style guide §9 palette, every `dark:` variant and the D44 landing fixes were dormant code), `color-scheme` added for native controls. Real UX gap found by the visual pass: the Record-a-payment "To" select rendered BLANK when opened via the plain button — now shows a "Select member" placeholder (the submit guard is unchanged). The landing story components, all app logic, data flows, testids, aria-labels and every user-facing string untouched — visual classes and one presentation-only plugin. `style-guide.md` §5 (Materials → the family table + the why-cards-don't-blur performance rule), §7 (Buttons/Inputs/Cards/Tab bar/Sheets) and §9 (dark mode now live) rewritten; `scripts/visual-v213.mjs` (new) shoots all 19 key surfaces (390×844, light+dark) against the production build with mocked Supabase data | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 211 · mocked Playwright 51 passed + 10 env-gated (zero spec edits — every DOM contract held: the ExpenseForm split-preview `rounded-lg border bg-muted/40` selector, `p.line-clamp-3` ×4, map pin classes, all testids/aria-labels/strings) · build green · budget 172.7/300 KB (+0.2 KB) · Lighthouse mobile 84/90/90/89 across four runs (the 84 a cold-cache outlier; within the v2.10-documented 89–97 band; A11y 100 · BP 100 · LCP 1.20–1.27 s · TBT 400–620 ms) · VLM design review over the 19 screenshots in 4 passes — every finding fixed and re-verified (trips-row badge crowding, avatar-chip size, sheet translucency 72→64%, switch track contrast, the blank To-select, tab-bar clearance) · dark mode live and VLM-verified on 5 surfaces · diff vs the v2-12 zip = the design-system files + this doc · recycle #12: tree restored from the delivered `pasyal-v2-12.zip` (the sandbox had reverted to a pre-v2.10-4 snapshot), stale port-3000 server killed, Playwright Chromium 1254 reinstalled, the v2-10-4/11/12 zips copied into `zip-archive/`** |
+| **v2.13 Expenses follow-up — stat card aligned, filter sheet, 3-column rows (2026-11-22, owner-requested)** | **Three owner requests for the Expenses tab, based on `pasyal-v2-13` and a Splitwise-style reference mockup ("i uploaded the reference images"): (1) "the first card 'Expenses' is not properly aligned, can you check the placement of each value" — the v2-13 stat strip was one flex-wrap line (total + 'total' label + count + avatar cluster + Add button) that wrapped unpredictably at phone widths; it is now two purposeful rows: the small-caps count label + member-initial cluster on top, the big tabular total + the Add action below (the reference's card anatomy, still WITHOUT the per-head figure — D50's math rule). (2) "change the filter, when the button clicked, you can filter the category, member, and date range" — the always-on 2×2 select grid + search row becomes the reference's search-with-magnifier + `Filter` pill; the pill opens the shared glass bottom sheet (DialogContent) holding Category / Member / From / To with small-caps `Label`s, live-apply on the same reactive refs, an active-count dot on the pill, and Clear all + Done in the footer. FR-EXP-10's filter semantics, the search, `hasFilters`/`clearFilters` and every date/category/payer matching rule untouched. (3) "Make the each expenses have 3 column. icon | Information Value | Price & how it split" — every row (linked and pending-sync alike) is now a 40-px category icon tile (`bg-primary/10` + hairline border, one stroked lucide-style line icon per category, `role="img"` + `aria-label` for screen readers) | title (15 px semibold) + one meta line | amount (15 px semibold tabular) + the split-type pill; the standalone category Badge is gone (the tile IS the category), and the meta keeps its exact `paid by X · N sharers` string while the date drops to the new compact `formatDateShort` ("Nov 11") — measured so the full meta fits ONE line at 390 px (rows `px-3 py-3`, `gap-2.5`, meta 11 px caption; long payer names still wrap cleanly at a space). New `formatDateShort` in `app/lib/trips.ts` (+1 unit test). aria-label rename to the owner's word: "Filter by payer" → "Filter by member" (visible label "Member", options "Paid by X" — semantics unchanged). Files: `app/pages/trips/[id]/expenses/index.vue`, `app/lib/trips.ts`, `tests/unit/trips.spec.ts`, `tests/e2e/pages.spec.ts` (the UI-06 spec now opens the sheet before asserting the filter labels, and exercises a real category filter + search combine), `style-guide.md` §7 (new "Expense rows & the stat card" subsection), `scripts/visual-expenses-v213.mjs` + `scripts/measure-expense-row.mjs` (new visual/geometry harnesses), `project-state.md`. Every other page, component and behavior untouched** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 212 (211+1) · mocked Playwright 51 passed + 10 env-gated (the updated UI-06 spec green — link name, ₱ amount, 'paid by Ana · 5 sharers', search, Add expense, sheet labels, category+search combine all asserted) · build green · budget 172.7/300 KB (+0.0 KB) · 3-round VLM visual review at 390×844 light+dark (rest / sheet open / filtered): round 1 found the meta wrap + the squeezed search field → fixed (compact date, measured geometry, Clear button folded into the sheet), round 3 approved with zero defects (stat card, one-line metas, pill badge, dark mode, filtered state all verified) · DOM geometry measured programmatically (`wrapped: false` at 390 px) · diff vs the v2-13 zip = the listed files · recycle #13: tree restored byte-verified from `zip-archive/pasyal-v2-13.zip` (the sandbox had reverted to a pre-v2.10 snapshot), stale port-3000 server killed, Playwright Chromium 1254 reinstalled** |
+| **v2.13-2 — chrome refinements: shadowless header, 2-column trip header, members-only owner actions, docked tab bar, itinerary day filter (2026-11-22, owner-requested)** | **Five changes across four files: `app.vue` — the header keeps its frosted `.ios-material` chrome but loses the float drop-shadow (a scoped `[box-shadow:inset_0_1px_0_0_var(--glass-highlight)]` override; the specular top edge stays), and the app footer's bottom padding grows 4.5rem → 5rem for a visible gap above the docked bar; `trips/[id].vue` — the trip header becomes `grid-cols-[minmax(0,1fr)_auto]` (Trip information | status badge: a long name truncates, the Active/Archived badge never wraps below), the Edit trip / Archive / Delete row gains `isMembersPage` (`route.path === /trips/{id}`) so it renders only on the Members tab, and the tab bar drops the floating capsule for a docked full-bleed glass bar (`w-full max-w-3xl`, `rounded-t-[1.25rem]`, `border-x border-t`, glass + padding under the home indicator; content still scrolls beneath the blur); `itinerary/index.vue` — the owner's scrollable day filter: one clip line of "All" + Day N pills (`overflow-x-auto`, `shrink-0`, scrollbar hidden, `-mx-4 px-4` edge-to-edge), filled pill = active, never disabled (an empty day is a jump target), hidden while loading or with ≤ 1 day, removing the filtered-to day falls back to All. No logic, data flow, testid or aria-label changes anywhere else** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 212 · mocked Playwright 51 passed + 10 env-gated (the UI-10 itinerary spec extended: filter group visible, Day 2 click hides Day 1, All restores) · build green · budget 172.7/300 KB (+0.0) · visual review at 390×844 light+dark: 35 geometry checks (badge row alignment, truncation, one-line filter at 36 px, 832 px chip overflow scrolling, docked bar flush at bottom 0 / left 0 / right 390, glass shadow kept on the bar) + 4 glass/clearance checks (backdrop-filter + 72% mix live on both bars via a red-stripe translucency test; footer last line 12.5 px above the bar) — all passing; VLM approved light+dark with its "opaque bar" claim disproven by computed styles + the red test · recycle #14: tree restored byte-verified from the delivered `pasyal-v2-13.zip` (the sandbox had reverted to a 2026-11-14 snapshot), stale port-3000 server killed, Playwright Chromium 1254 reinstalled** |
+| **v2.13-3 — badge cap, matched Edit/Delete pills, itinerary glass artifact (2026-11-22, owner-requested)** | **Three fixes in three files: `expenses/index.vue` — the stat card's member cluster renders `visibleMembers` (`membersCanonical.slice(0, 3)`) plus a "+N more" text chip (`hiddenMemberCount`, ml-2.5 netting a small gap past the cluster's -space-x-1.5, `whitespace-nowrap`, same 11 px semibold caption tone as the count label; the cluster stays aria-hidden decorative, and the full member list remains available in the Filter sheet); `expenses/[expenseId]/index.vue` — the Edit action becomes a plain `Button size=sm variant=outline` that navigates with `navigateTo(...)` in its click handler, exactly matching Delete's element, variant, size and classes (the `as-child`+NuxtLink anchor/button pair was the only height asymmetry between the two pills — e.g. any environment where the Primitive→anchor class merge degrades renders Edit as a bare text link next to a 32 px pill; no e2e spec clicked the Edit link — all edit flows use direct URLs, so no spec edits); `itinerary/index.vue` — the day `article.glass` gains `overflow-hidden` (clips the square-cornered `bg-foreground/[0.03]` day-header band to the rounded silhouette), the day-filter row gains a `day-filter` hook class + scoped `.day-filter :deep(.glass-btn) { backdrop-filter: none }` (Chromium composites backdrop-filter children of a scroll clip against the scroller's unpainted black overflow region — the sharp-cornered plate under the glass the owner reported; GPU-only, invisible in headless software rendering), and the Open booking / Open in Maps link pills drop `backdrop-blur-sm` (resting surfaces, per the D50 rule). No logic, data, testid, or aria-label changes anywhere** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 212 · mocked Playwright 51 passed + 10 env-gated (zero spec edits) · build green · budget 172.7/300 KB (+0.0 KB) · mocked visual harness re-run at 390×844: cluster = 3 circles + "+4 more" (7-member mock), day pills backdrop-filter none (All solid emerald, Day 1/2 resting glass 76% mix), card links backdrop-filter none, Edit/Delete both `<button>` 32 px at y=153 with identical class tails; VLM review of the fixed stat card approved · diff vs the v2-13-2 zip = the three listed pages + this doc** |
+| **v2.13-4 — map full-screen pass: scrollable day filter, viewport-measured canvas, floating share toggle + toasts, no legend/presence, edge direction chips, icon-only locate (2026-11-23, owner-requested)** | **Seven owner requests, two files (+ the e2e spec): `app/pages/trips/[id]/map.vue` — (1) the day filter becomes the itinerary page's one scrollable clip line (`day-filter` `-mx-4 px-4 overflow-x-auto`, `shrink-0` pills, scrollbar hidden, plus the same v2-13-3 scoped `.day-filter :deep(.glass-btn) { backdrop-filter: none }` Chromium mitigation); (2) the canvas is measured against the real viewport instead of a fixed 65 vh — `sizeMapToViewport()` sets height = `innerHeight − document-space top of the shell − docked tab bar − 8 px` (re-run on resize/orientationchange and via a `watch([loading, trip, sharingOn, loadError])`; a 300 px floor only guards a degenerate sliver, and the CSS fallback keeps `h-[65vh] min-h-[300px]`), the canvas is ALWAYS mounted with loading/error/empty as overlays over it, and the shell gains `isolate` so the overlays' z-450/500 stay inside the map's stacking context (app chrome, dialogs and the tour overlay keep painting above — without it the empty-state overlay covered the onboarding tour's Next button); (3) the "Share my location" Card is replaced by a 44 px on/off button floating in the map's lower-left corner (broadcast-wave icon, solid primary + pulsing dot when on, glass when off; same `sharing-toggle` testid, `data-state`, aria-label and consent-dialog flow) with a `map-toast` floating confirmation that fires ONLY on a real state change ("Location sharing on — visible to trip members." / "Location sharing off. Your pin was removed.") — the permission-denied auto-off path still surfaces its own alert; (4) the legend row (stops / members / last-seen / demo chips) is gone; (5) the "In the app now" presence line is gone (`presenceIds` no longer read here; the engine's presence tracking still runs); the card's permission/channel-status lines survive as floating overlays over the canvas. `app/components/map/TripMap.client.vue` — (6) edge indicators: every stop or member pin outside the current viewport gets a direction chip pinned to the padded map edge (parametric ray clip from the viewport center, `EDGE_PAD` keeps chips clear of the zoom control / status card / share toggle / locate button, rAF-throttled on every `move zoom resize` + after marker/pin batches, capped at 8 with live > stale > demo > stop priority, kind-colored chip with a rotated arrow + stop number / member initial, `aria-label` names the target, tap pans there at zoom ≥ 13); (7) the "My location" control becomes an icon-only 44 px circular glass button (crosshair icon, same aria-label/behavior; the locateMessage note moves up to `bottom-20` to clear the new lower-left toggle); plus a `ResizeObserver` → `invalidateSize` so Leaflet re-measures the viewport-sized canvas (and on rotate). `tests/e2e/pages.spec.ts` — the legend/presence/demo-chip assertions flip to `toHaveCount(0)`, and the map specs gain v2-13-4 coverage: single-line filter geometry, canvas-fills-to-the-tab-bar bounding-box math, icon-only locate, the pan → chip → tap → pan-back edge-indicator flow, the toggle's lower-left placement, and the on/off toast texts. No other page, component, behavior, testid or aria-label changes** | ✅ **Delivered** | **lint 0 · typecheck 0 (one TS2783 duplicate-key fixed: `{ key, ..., ...t }` → `{ ...t, x, y, angle }`) · vitest 212 · mocked Playwright 51 passed + 10 env-gated · build green · budget 172.8/300 KB (+0.1 KB) · Playwright Chromium 1254 reinstalled after the sandbox recycle (the 7 map-area specs, then the full suite) · diff vs the v2-13-3 zip = the two map files + the e2e spec + this doc** |
+| **v2.13-5 — the sharing banner renders on the Members tab only (2026-11-23, owner-requested)** | **One request, one component (+ the two e2e specs): `app/components/location/LiveLocationStatus.client.vue` — the FR-LOC-11 banner (the "📍 Sharing location: visible to trip members. It stops when you close the app or switch sharing off." paragraph) gains an `isMembersPage` gate (`route.path === /trips/{tripId}` — route-exact, the same rule the wrapper's isActive uses for the Members tab and v2-13-2 used for the owner-actions row) appended to its existing v-if, so the paragraph renders ONLY on the Members tab and is absent from Map / Itinerary / Expenses / Balances and every child route. The engine responsibilities are untouched: the trip wrapper still mounts the component on every trip screen, still starts/stops the private realtime channel, seeds persisted positions and runs the geolocation watcher while sharing is on — transmission never depended on the banner, and the banner still appears/disappears reactively with the sharing flag on the Members tab. The banner's text, `sharing-banner` testid, `role="status"` and styling are unchanged; the v2-13-4 map toggle/toasts are untouched. `tests/e2e/pages.spec.ts` — the consent/toggle spec (title updated): `sharing-banner` `toHaveCount(0)` on the map after sharing turns on, a REAL client-side Members tab switch (the wrapper stays mounted — the v-if must react to the route, not a remount) asserts the banner with both sentences, and each off/on flip is verified on the Members tab between map visits. `tests/e2e/e2e-07.spec.ts` — Ana's and Ben's banner checks become Members-tab visits (then back to the map for the pin assertions), and the switch-off check asserts the banner is gone on the Members tab after the FR-LOC-02 pin-disappearance window (the 5 s assertion itself keeps its original ordering). No other page, component, behavior, testid or aria-label changes** | ✅ **Delivered** | **lint 0 · typecheck 0 · vitest 212 · mocked Playwright 51 + 10 env-gated · build green · budget 172.8/300 KB (+0.0 KB) · diff vs the v2-13-4 zip = the component + the two e2e specs + this doc · recycle #15: tree restored byte-verified from `zip-archive/pasyal-v2-13-4.zip` (the sandbox had reverted to a pre-v2.13 snapshot), stale port-3000 server killed, Playwright Chromium 1254 reinstalled** |
 | M7 Demo and pilot readiness | Seed data, demo script, privacy pages, pilots | ⬜ Not started | SC-01 |
+
+---
+
+## Current state — v2.13-5 (banner on the Members tab only, 2026-11-23)
+
+The owner's brief (on top of the delivered v2.13-4 baseline):
+"can you make the '📍 Sharing location: visible to trip members. It
+stops when you close the app or switch sharing off.' visible only in
+the member page and not in the other page."
+
+Delivered (see the v2.13-5 milestone row for the file-level details).
+Interpretations worth knowing: "the member page" is the Members tab —
+the trip home `/trips/{id}`, route-exact like the wrapper's isActive
+(the same rule v2-13-2 already used for the owner-actions row) — not
+every screen that shows member content; and the change is purely
+presentational for the banner: the live-location engine (private
+channel, watcher, persisted positions) still runs on every trip
+screen because the component still mounts everywhere — only the
+paragraph's v-if gained the route gate. The banner still appears and
+disappears reactively with the sharing flag on the Members tab —
+proven by a real client-side tab switch in the mocked e2e suite (the
+wrapper keeps the component mounted, so the v-if itself must react to
+the route change, not a remount). The v2-13-4 map's own confirmations
+(lower-left on/off toggle + toasts) are untouched.
+
+Shipped as `pasyal-v2-13-5.zip`.
+
+---
+
+## Previous state — v2.13-4 (map full-screen pass, 2026-11-23)
+
+The owner's brief (on top of the delivered v2.13-3 baseline):
+"Base on pasyal-v2-13-3, here are my additional improvements: Tasks:
+Map 1. Change the filter into scrollable in 1 line. 2. let's make the
+map whole screen as possible. 3. remove the "Share my location" card,
+make it like a button on and off and add a toast message that it notif
+that it share the location and it off the share location, put that
+button in the lower left of the map. 4. remove the legends … 5. Remove
+the "In the app now". 6. Add a function that showing the direction of
+other pin or location of itinerary and other member if the location or
+pin cannot see in the current map. 7. make the "My location" button
+only."
+
+All seven delivered (see the v2.13-4 milestone row for the file-level
+details). Interpretations worth knowing: "whole screen as possible"
+means the canvas measures and fills every viewport pixel between the
+content above it and the docked tab bar (it does not collapse the
+header/filter above it — that chrome was deliberately kept, task scope
+respected); the share toggle keeps its testid, data-state, aria-label
+and the consent-dialog-before-permission flow, so every existing
+e2e flow (and the tour) works unchanged; "make the 'My location'
+button only" reads as icon-only — the crosshair keeps its accessible
+name, matching the new floating-button idiom of the share toggle (the
+"Fit to group" action is untouched); and the toast fires only on real
+state changes — setSharing leaves sharingOn untouched on failure, and
+the engine's permission-denied auto-off path surfaces its own alert
+instead of a success-style toast.
+
+Two integration bugs found and fixed by the gates themselves: the
+420 px min-height floor (both the JS constant and the CSS class)
+pushed the canvas 12.5 px under the glass tab bar on the 720 px test
+viewport — the floor is now 300 px and only guards a degenerate sliver;
+and the new absolute-positioned overlays (loading/error/empty, z-450)
+escaped the shell's stacking context and painted above the onboarding
+tour overlay (z-90) — the tour's Next button was covered exactly at
+the map step, reproduced and root-caused with a frame-by-frame
+geometry + hit-test harness (the geometry was perfectly stable; the
+hit test pointed at the empty-state overlay) — fixed with `isolate`
+on the shell, the same pattern the TripMap root has carried since
+M3.
+
+Shipped as `pasyal-v2-13-4.zip`.
+
+---
+
+## Previous state — v2.13-3 (badge cap, matched pills, itinerary glass fix, 2026-11-22)
+
+The owner's brief (on top of the delivered v2.13-2 baseline):
+"Expenses — 1. make the 'membersCanonical' limit to badge and the
+rest hide it and make a text of how many more. 2. in expenses details
+page, the edit and delete button are not same height. Itinerary — 1.
+check the shadow or something black background under the card and it
+has sharp corner and it show in the frontend, remove it or fix it."
+
+All three delivered (see the v2.13-3 milestone row for the file-level
+details). Interpretations worth knowing: the badge cap keeps three
+circles — the reference apps' avatar-stack idiom — with everyone past
+the cap in a "+N more" caption; nothing is hidden from the user, the
+full roster stays in the Filter sheet's Member select. The Edit/Delete
+fix removes the only structural asymmetry (anchor via as-child vs
+plain button) rather than chasing a pixel: the two pills are now the
+same element with the same classes, so no browser, font stack or
+hydration path can render them at different heights. The itinerary
+artifact investigation: the owner's own screenshots (Nov 21) and the
+v2-13-2 code pointed at two real sources — the square-cornered
+day-header band bleeding past the day card's rounded corners
+(overflow was visible), and Chromium compositing backdrop-filter
+children of an overflow-x-auto scroll clip against the scroller's
+unpainted black region — a sharp-cornered dark plate that only shows
+with GPU rasterization (headless/software rendering, which every
+prior visual pass used, never paints it; that is exactly why it
+"shows in the frontend" but not in the harness). Both are removed:
+the day cards clip to their rounded silhouette, and no glass surface
+on the page blurs anymore — the pills take the resting material,
+which is the design system's own rule (D50: "no backdrop-filter on
+resting surfaces; blur only where content passes beneath").
+
+Shipped as `pasyal-v2-13-3.zip`.
+
+---
+
+## Previous state — v2.13-2 (chrome refinements, 2026-11-22)
+
+All five delivered (see the v2.13-2 milestone row for the file-level
+details). Interpretations worth knowing: "remove the shadow" is scoped
+to the header's DROP shadow — the frosted blur and the 1-px specular
+top edge are the glass look the owner loves, so they stay (and the
+tab bar keeps its shadow entirely); "appears only in member page" is
+route-exact (`/trips/{id}` — the Members tab), which every env-gated
+e2e Delete flow already satisfies, so no test edits were needed for
+it; the day filter mirrors the map tab's existing pill idiom (Button
+sm, filled = active, aria-pressed) with two deliberate differences —
+never disabled (an empty day is a valid jump target on the itinerary)
+and hidden when there is nothing to filter (≤ 1 day or still
+loading). The VLM review's "opaque tab bar" claim was investigated
+and refuted: computed styles show the 72% translucent mix +
+blur(24px) on both bars, and an injected red-stripe test renders
+frosted red through both — the flat-white read was glass over light
+content.
+
+Shipped as `pasyal-v2-13-2.zip`.
+
+---
+
+## Previous state — v2.13 Expenses follow-up (2026-11-22)
+
+The owner's brief (on top of the delivered v2-13 liquid-glass
+baseline): "1. the first card 'Expenses' is not properly aligned, can
+you check the placement of each value. 2. change the filter, when the
+button clicked, you can filter the category, member, and date range.
+3. Make the each expenses have 3 column. icon | Information Value |
+Price & how it split. i uploaded the reference images." The reference
+is a Splitwise-style mockup (green theme, 5-expense trip) — taken as
+direction, not spec: its two-row summary card, its search + Filter
+row and its icon-tile rows are in; its per-head figure stays out
+(D50 — wrong math for exact/percentage/shares splits), its
+one-card-per-row list stays out (the app's inset-grouped list is the
+established language), and its "split 5 ways" wording stays out (the
+'paid by X · N sharers' string is a test contract).
+
+Delivered as the three changes above (see the v2.13 Expenses
+follow-up milestone row and D51 for the details), with all gates
+green and a three-round VLM visual review ending in a clean pass.
+
+---
+
+## Previous state — v2.13 (liquid glass UI/UX pass, 2026-11-21)
+
+
+The owner's brief: "I want to improve the UI/UX of the our web app, i
+want the liquid glass design on IOS 27 of latest iPhone. I upload some
+idea or reference but that doesn't mean that is the final design, i want
+you to assess it. it just i want to improve the UI/UX and make all the
+information, details, value is easy to read and understand, and all the
+buttons, toggle, cards, and other functions and design should be
+consistent in all pages. i will let you design and improve it, i trust
+you. just to make sure you take care our web app and do not broke any
+codes, focus on the design and not in the function or logic, but if you
+need to change the function or logic, just be careful and test it again
+to make sure it still working."
+
+### The reference assessment
+
+The seven uploaded screenshots are the owner's own production app
+(their real trip data — Japan/Coron, jayson/briggs/ej/ruth). What they
+show that the codebase did not: an expenses summary card with the total
+and member avatars, a "Filter" affordance, a green-tinted canvas, and a
+per-member paid/owed balances layout. Taken as direction, not spec:
+the summary card's per-head figure was NOT copied (it is only correct
+for uniform equal splits — this app has exact/percentage/shares splits,
+so a total÷N line would be wrong math), but the total-first hierarchy,
+the member-initial cluster and the tinted canvas were.
+
+### The design system (D50) — one glass, everywhere
+
+Four materials in `tailwind.css`, all sharing the `--glass-*` tokens:
+
+| Material | Recipe | Wears it |
+|---|---|---|
+| `.glass` | card @ 80% · hairline · inset 1 px specular top edge · ambient shadow — no blur | Card, grouped lists, stat strip, EmptyState, day cards, "not found" |
+| `.glass-blur` | card @ 64% · blur(24px) saturate(180%) · float shadow | DialogContent sheets, AppTour card, place-search dropdown |
+| `.glass-btn` | card @ 76% · blur(12px) saturate(150%) · one hover/active fill | outline/secondary Button variants |
+| `.ios-material` | the chrome recipe (name kept from D25) | header, the floating tab-bar capsule |
+| `.field` | card @ 55% well · inset shadow · shared focus ring | Input, Textarea, every raw `<select>` |
+
+Supporting: `--btn-sheen` (the saturated-fill top edge on
+primary/destructive buttons and badges), and the canvas washes — two
+≤9% emerald radial gradients on `body` (top + bottom; no fixed
+attachment — iOS Safari ignores it). Contrast: every mix keeps
+`--muted-foreground` ≥ AA on the canvas (Lighthouse A11y 100).
+
+**The performance rule:** cards do NOT blur. Backdrop-filter on every
+list card would tax scroll for nothing (the canvas beneath is smooth);
+blur is spent only where content moves under glass — header, tab bar,
+sheets, tour, dropdowns. Lighthouse held the documented band.
+
+### The page-by-page pass
+
+* **Tab bar** — the signature element: a floating glass capsule
+  (`rounded-[1.625rem]`, detached 10 px + safe-area from the edge,
+  `max-w-md` centered); content scrolls beneath the blur; emerald tint
+  still marks the active tab. Page clearance pb-24→pb-28.
+* **Expenses** — the toolbar line grows into a glass stat strip: the
+  total leads in bold tabular figures, the count beside it, the
+  member-initial cluster next to that (aria-hidden, ring-separated),
+  the Add button opposite. Filters/search wear `.field`.
+* **Trips list** — the balance badge sits UNDER the meta line (the
+  owner's reference layout): the date range gets the full row width
+  and nothing wraps against the badge.
+* **Balances** — member rows and settle-up rows in `bg-card/45` wells;
+  the "All settled" panel is emerald glass; the Record-a-payment "To"
+  select shows "Select member" instead of rendering blank (found by the
+  visual pass; the empty-submit guard is unchanged).
+* **Itinerary** — day cards are glass with a well-material header; the
+  booking/maps links are glass pill chips; the numbered stop chips get
+  a rim highlight.
+* **Map** — bezelled frame, glass share panel (Card), day chips
+  (Buttons) consistent with every other control.
+* **Banners** — all amber offline/stale/sharing banners share ONE
+  treatment (`amber-50/85` + blur + NEW dark variants — they had
+  none); NetStatus badges and the update pill are glass.
+* **Members / Settings / Account / New trip / Join / Summary / Auth** —
+  Cards and fields inherit; inner lists are wells; the install-guide
+  steps, the join member-pick rows and the summary per-person rows all
+  match; the avatar chips get the sheen; summary bars get the sheen.
+
+### Dark mode goes live
+
+`app/plugins/color-mode.client.ts` (new, 34 lines, client-only) toggles
+`.dark` on `<html>` from `prefers-color-scheme` and follows the OS
+live. Until v2-13 nothing ever set that class — the entire dark theme
+(tokens, `dark:` variants, the D44 landing fixes) was dormant code.
+`color-scheme: light/dark` added so native controls (date inputs,
+selects) follow. This is the one behavioral change of the pass,
+presentation-only; the VLM review verified the dark surfaces (trips,
+expenses, itinerary, balances, members) — including that the dark date
+fields render dark glass, not white native boxes.
+
+### What was deliberately NOT touched
+
+The landing components (their own art direction + 10 spec contracts),
+all logic/data flows, every testid/aria-label/user-facing string, the
+service worker, the SEO surface, the SPEC. Two test-DOM contracts were
+explicitly preserved: the ExpenseForm split preview
+(`div.rounded-lg.border.bg-muted/40`) and the itinerary
+`p.line-clamp-3` rows.
+
+### Gates
+
+lint 0 · typecheck 0 · vitest 211 · mocked Playwright 51 passed + 10
+env-gated (zero spec edits needed) · build green · budget 172.7/300 KB
+(+0.2 KB) · Lighthouse mobile 84/90/90/89 (A11y 100 · BP 100 · LCP
+1.20–1.27 s) · visual review: `scripts/visual-v213.mjs` shoots 19
+surfaces at 390×844 (light + dark) against the production build with
+mocked Supabase data; four VLM passes reviewed them; every finding was
+fixed and re-verified (trips-row crowding, avatar-chip size, sheet
+translucency, switch track contrast, the blank To-select, tab-bar
+clearance).
+
+Delivered on top of recycle #12: the sandbox had reverted the tree to
+a pre-v2.10-4 snapshot (landing components, `offline-mode-state.md`,
+SEO files all missing), so the tree was restored byte-verified from the
+delivered `pasyal-v2-12.zip` first; a stale port-3000 dev server was
+killed, Playwright Chromium 1254 reinstalled, and the v2-10-4/11/12
+zips were copied into `zip-archive/` for future recycles.
 
 ---
 
@@ -1539,6 +1819,8 @@ date inputs verified fine after that; footer text cleared the tab bar
 | D47 | **Balances gets the full offline contract (v2.11):** the owner reported the raw "TypeError: Failed to fetch" on the Balances page offline and asked for the best flow/UX, pre-approving the recommendation. Implemented: read offline from a new `balances` snapshot (`{balances, settlements, expenses}`) under the standard amber "possibly outdated" banner; `browserOffline()` fast path + `isNetworkError` fallback (no doomed fetches, no supabase-js retry backoff hang); transport errors never render raw — no snapshot shows `OFFLINE_NO_SNAPSHOT` + Try again, real server errors show friendly copy; record/confirm/delete payments stay online-only by design (money writes are NOT queued — D13's FR-PWA-04 scope) and refuse offline with `OFFLINE_BLOCKED_MESSAGE` at the entry point (the record dialog does not open); `useQueueSynced` reloads the numbers after the offline queue flushes. This closes the v2.9 audit's gap #2 and polishes its gap #3 for the balances actions | v2.11 (2026-11-19) | Owner request: "in Balances Page, it says 'TypeError: Failed to fetch' what do you think is the best flow or UX for this matter ? I will go to your recommendation." | Owner direction (pre-approved) |
 | D48 | **The offline trips list renders again — and reconstructs when the list snapshot is missing (v2.11):** the owner's "i cannot see the list of my trips" was a template-chain bug present since M5: the `/trips` stale banner sat inside the loading/error `v-else-if` chain, so an offline snapshot restore rendered the banner and suppressed the list. Fix layers: (1) the banner is standalone like the expenses/summary tabs (the snapshot list renders under it — new e2e contracts assert the cards, which is why this survived five versions of green offline suites); (2) `reconstructOfflineTripList` (pure, unit-tested) rebuilds the index from the per-trip snapshots already on the device when the list snapshot is missing — my-membership filter, dedupe, newest-first, `my_net_minor: null` (server-computed) so the balance badge is hidden on rebuilt rows and the banner says "the trips you've opened on this device"; (3) `app.vue` warms the `__trips_list` snapshot once per app start when online + signed in, so deep-link-only sessions no longer go offline without it | v2.11 (2026-11-19) | Owner report: "my first encounter during my offline mode is i cannot see the list of my trips. its show the offline warning that i am offline." — reproduced in the production build before the fix | Owner report (bug) |
 | D49 | **The SEO surface for pasyalph.com (v2.12):** the owner asked to make the production app findable "when they research this kind of system, app, web app, features" and for guidance on the Google/marketing side. Implemented: the landing page carries the full crawler contract in its prerendered HTML — keyword-bearing title set verbatim (page-level `titleTemplate: null` after discovering the config's function template only applies post-hydration, so raw-HTML crawlers were reading bare titles), meta description, canonical + og:url from a single-source `runtimeConfig.public.siteUrl` (default `https://pasyalph.com`, `NUXT_PUBLIC_SITE_URL` override), Open Graph + `summary_large_image` Twitter tags with a generated 1200×630 brand card (`public/images/og-card.png`, PIL generator committed, excluded from the SW precache), and WebApplication JSON-LD (TravelApplication + featureList + free offer, no aggregateRating — fake ratings are a penalty risk). New prerendered Nitro routes `/robots.txt` (landing + `/auth` crawlable; the ssr:false session shells and the API disallowed — crawlers would see empty divs there) and `/sitemap.xml` (one URL — the landing — build-date lastmod). Optional `NUXT_PUBLIC_GOOGLE_SITE_VERIFICATION`/`NUXT_PUBLIC_BING_SITE_VERIFICATION` metas as the no-DNS verification fallback. The owner's half is `docs/seo-guide.md` (GSC domain verification + sitemap + request indexing, Bing import covering DuckDuckGo/Yahoo, social debugger re-scrapes, analytics options, Product Hunt/PWABuilder/communities/blog marketing surfaces, anti-patterns, maintenance). Verified by `scripts/verify-seo-v212.mjs` (19 checks against the production build) + 2 new e2e specs | v2.12 (2026-11-21) | Owner request: "i want to improve its SEO so it can find it in the internet easily when they research this kind of system, app, web app, features, etc. guide me also what should i do in my end… domain name: pasyalph.com" | Owner request (SEO) |
+| D50 | **The liquid glass material system (v2.13):** the owner asked for the iOS-26 liquid-glass look with full-page consistency and freedom on the design ("i trust you"), function untouchable. Instead of restyling pages one by one, the pass builds four shared materials in `tailwind.css` (`.glass` resting surfaces without blur — backdrop-filter on list cards would tax scroll for nothing; `.glass-blur` frosted floating surfaces at 64% over the scrim; `.glass-btn` one control material; `.ios-material` redefined as the chrome) driven by shared `--glass-*`/`--btn-sheen` tokens and ≤9% emerald canvas washes, then lets the primitives (Card/Badge/Button/Input/Switch/Dialog/EmptyState/one `.field`) propagate the language to every page. The tab bar becomes a floating capsule; the expenses toolbar becomes a stat strip (total-first, member-initial cluster — the reference's per-head figure deliberately NOT copied: it is only correct for uniform equal splits and this app has exact/percentage/shares); the trips badge moves under the meta line (reference layout). **Dark mode goes live** via a client-only plugin wiring `.dark` to `prefers-color-scheme` — until v2-13 the class was never set anywhere, so the entire contrast-verified dark theme was unreachable; `color-scheme` added for native controls. One real UX gap found and fixed during the visual pass: the Record-a-payment "To" select rendered blank on a generic open (now a "Select member" placeholder; submit guard unchanged). Zero spec edits: every DOM contract held unchanged | v2.13 (2026-11-21) | Owner request: "i want the liquid glass design on IOS 27 of latest iPhone… all the buttons, toggle, cards, and other functions and design should be consistent in all pages… focus on the design and not in the function or logic" | Owner request (UI/UX) |
+| D51 | **The Expenses page owner-pass (v2.13 follow-up):** three requests, one page. (1) The stat card becomes two purposeful rows — small-caps count label + member-initial cluster up top, big tabular total + Add action below — killing the single flex-wrap line whose unpredictable wrapping was the owner's "not properly aligned" report (the reference's per-head figure still deliberately absent, D50). (2) The filters move behind a `Filter` pill into the shared glass sheet: category / member / date-range on the same reactive refs (FR-EXP-10 unchanged, live-apply), an active-count dot on the pill, Clear all + Done in the footer; the toolbar becomes search-with-magnifier + that pill (the reference layout). The owner says "member", so the aria-label becomes "Filter by member" (options "Paid by X" keep the payer semantics). (3) Every row is three columns — a 40-px category icon tile (stroked line icon per category, `role="img"` aria-label), title + ONE meta line, amount + split-type pill; the category Badge is replaced by the tile, and a new `formatDateShort` ("Nov 11", month-day, in `app/lib/trips.ts`, unit-tested) plus measured geometry (rows `px-3 py-3` `gap-2.5`, 11-px caption meta) keeps the full "Nov 11 · paid by X · N sharers" on one line at 390 px (176.7 px in 177 px; longer names wrap cleanly at a space). The e2e UI-06 contract updated to open the sheet first (labels + a real category filter + search combine) — the only test edit | v2.13 Expenses follow-up (2026-11-22) | Owner request: "the first card 'Expenses' is not properly aligned… change the filter, when the button clicked, you can filter the category, member, and date range… Make the each expenses have 3 column. icon | Information Value | Price & how it split" | Owner request (UX) |
 
 ---
 

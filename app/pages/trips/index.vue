@@ -163,7 +163,7 @@ function balanceBadge(trip: TripRow): { variant: 'default' | 'secondary' | 'dest
          loading/error v-else chain, which suppressed the list offline). -->
     <p
       v-if="stale && !loadError"
-      class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+      class="mb-4 rounded-xl border border-amber-300/80 bg-amber-50/85 px-4 py-3 text-sm text-amber-900 shadow-sm backdrop-blur-sm dark:border-amber-600/40 dark:bg-amber-950/60 dark:text-amber-200"
       role="status"
       data-testid="stale-banner"
     >
@@ -197,16 +197,19 @@ function balanceBadge(trip: TripRow): { variant: 'default' | 'secondary' | 'dest
       </EmptyState>
 
       <section v-if="activeTrips.length" aria-label="Active trips">
-        <!-- iOS pass (2026-11-12): inset grouped list — one white card,
-         hairline dividers, chevrons, tap feedback (style-guide.md →
-         Lists). -->
-        <div class="bg-card shadow-sm divide-y divide-border/70 overflow-hidden rounded-xl border">
+        <!-- v2-13 liquid glass: the grouped list is one .glass slab —
+             translucent, hairline dividers, chevrons, tap feedback
+             (style-guide.md → Lists, concentric with the 20 px cards). -->
+        <div class="glass divide-y divide-border/60 overflow-hidden rounded-2xl">
           <NuxtLink
             v-for="trip in activeTrips"
             :key="trip.trip_id"
             :to="`/trips/${trip.trip_id}`"
             class="flex items-center justify-between gap-3 px-4 py-3.5 transition-colors duration-150 active:bg-accent/60"
           >
+            <!-- v2-13: the balance badge sits UNDER the meta line (the
+                 owner's reference screens) — the date range gets the
+                 full row width and nothing wraps against the badge. -->
             <div class="min-w-0">
               <p class="truncate font-semibold">{{ trip.name }}</p>
               <p class="text-muted-foreground mt-1 text-sm">
@@ -214,22 +217,20 @@ function balanceBadge(trip: TripRow): { variant: 'default' | 'secondary' | 'dest
                 {{ trip.member_count }} {{ trip.member_count === 1 ? 'member' : 'members' }} ·
                 {{ trip.base_currency }}
               </p>
-            </div>
-            <div class="flex shrink-0 items-center gap-2">
-              <Badge v-if="trip.my_net_minor !== null" :variant="balanceBadge(trip).variant">{{
+              <Badge v-if="trip.my_net_minor !== null" :variant="balanceBadge(trip).variant" class="mt-2">{{
                 balanceBadge(trip).label
               }}</Badge>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.75"
-                class="text-muted-foreground/50 size-5 shrink-0"
-                aria-hidden="true"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" />
-              </svg>
             </div>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              class="text-muted-foreground/50 size-5 shrink-0"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" />
+            </svg>
           </NuxtLink>
         </div>
       </section>
@@ -238,7 +239,7 @@ function balanceBadge(trip: TripRow): { variant: 'default' | 'secondary' | 'dest
         <h2 class="text-muted-foreground mb-3 text-xs font-semibold uppercase tracking-wide">
           Archived (read-only)
         </h2>
-        <div class="bg-card shadow-sm divide-y divide-border/70 overflow-hidden rounded-xl border opacity-80">
+        <div class="glass divide-y divide-border/60 overflow-hidden rounded-2xl opacity-80">
           <NuxtLink
             v-for="trip in archivedTrips"
             :key="trip.trip_id"
@@ -251,22 +252,20 @@ function balanceBadge(trip: TripRow): { variant: 'default' | 'secondary' | 'dest
                 {{ formatDateRange(trip.start_date, trip.end_date) }} ·
                 {{ trip.member_count }} {{ trip.member_count === 1 ? 'member' : 'members' }}
               </p>
-            </div>
-            <div class="flex shrink-0 items-center gap-2">
-              <Badge v-if="trip.my_net_minor !== null" variant="outline">{{
+              <Badge v-if="trip.my_net_minor !== null" variant="outline" class="mt-2">{{
                 balanceBadge(trip).label
               }}</Badge>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.75"
-                class="text-muted-foreground/50 size-5 shrink-0"
-                aria-hidden="true"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" />
-              </svg>
             </div>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              class="text-muted-foreground/50 size-5 shrink-0"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" />
+            </svg>
           </NuxtLink>
         </div>
       </section>

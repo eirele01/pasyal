@@ -4,16 +4,23 @@
  * (FR-ITN-08, FR-MAP-01/04/06), updating live through Supabase Realtime
  * (FR-ITN-05).
  *
- * M4 adds the live-location half of the screen:
- *   * the per-trip sharing toggle with the plain-language consent dialog
- *     shown BEFORE the browser permission prompt (FR-LOC-02/03, UI-13);
- *   * member location pins — visually distinct, greyed when stale, hidden
- *     after 30 minutes, with accuracy and last-seen labels that update
- *     without a reload (FR-MAP-02, FR-LOC-07/08/16);
- *   * "Fit to group" (FR-MAP-05) and the presence indicator (FR-LOC-14);
- *   * the demo simulator pins, clearly labelled (FR-LOC-15);
- *   * a screen wake lock while this map is open and sharing is on,
- *     released on leave/off, feature-detected (FR-LOC-09, EI-02).
+ * M4 adds the live-location half of the screen: member location pins —
+ * visually distinct, greyed when stale, hidden after 30 minutes, with
+ * accuracy and last-seen labels that update without a reload
+ * (FR-MAP-02, FR-LOC-07/08/16); "Fit to group" (FR-MAP-05); the demo
+ * simulator pins, clearly labelled (FR-LOC-15); a screen wake lock while
+ * this map is open and sharing is on (FR-LOC-09, EI-02); and the
+ * per-trip sharing toggle with the plain-language consent dialog shown
+ * BEFORE the browser permission prompt (FR-LOC-02/03, UI-13).
+ *
+ * v2.13-4 (owner request) reshapes the whole screen: the day filter is
+ * one scrollable clip line (mirroring the itinerary page), the map
+ * fills every remaining pixel of the viewport (measured, so it always
+ * ends just above the docked tab bar), the "Share my location" card is
+ * replaced by an on/off button floating in the map's lower-left corner
+ * with toast confirmations, the legend row and the "In the app now"
+ * presence line are gone, and the map component itself gains edge
+ * indicators that point at pins/stops outside the current view.
  *
  * Positions arrive through the private realtime channel owned by the
  * trip wrapper's engine component (useLiveLocation); this page only
@@ -51,7 +58,6 @@ const live = useLiveLocation(tripId)
 const {
   config: locConfig,
   pins: livePins,
-  presenceIds,
   channelStatus,
   permissionError,
   sharingOn,
@@ -59,6 +65,9 @@ const {
   acquireWakeLock,
   releaseWakeLock,
 } = live
+// v2.13-4: presenceIds is intentionally no longer read here — the
+// "In the app now" line was removed (owner request). The channel's
+// presence tracking itself still runs for the engine.
 const { demoOn } = useDemoMode()
 
 useSeoMeta({ title: 'Map' })
@@ -114,19 +123,6 @@ const nowMs = ref(Date.now())
 let ticker: number | undefined
 let demoStartedAt = Date.now()
 
-onMounted(async () => {
-  ticker = window.setInterval(() => {
-    nowMs.value = Date.now()
-  }, 1_000)
-  if (!trip.value) await loadTrip()
-  await loadItinerary()
-})
-
-onUnmounted(() => {
-  window.clearInterval(ticker)
-  releaseWakeLockNow()
-})
-
 // ── Member pins (FR-MAP-02, FR-LOC-07/08/13/15/16) ────────────────────
 const memberPins = computed<TripMapMemberPin[]>(() => {
   const out: TripMapMemberPin[] = []
@@ -179,17 +175,24 @@ const memberPins = computed<TripMapMemberPin[]>(() => {
   return out
 })
 
-// ── Presence (FR-LOC-14) ───────────────────────────────────────────────
-const presentMembers = computed(() => {
-  const byId = new Map(members.value.map((m) => [m.id, m]))
-  return presenceIds.value
-    .map((id) => byId.get(id))
-    .filter((m): m is NonNullable<typeof m> => Boolean(m))
-})
-
 // ── Sharing toggle + consent (FR-LOC-01/02/03, UI-13) ─────────────────
 const consentOpen = ref(false)
 const consentKey = `pasyal:loc-consent:${tripId}`
+
+// v2.13-4: the card is gone; the confirmation is a floating toast at the
+// bottom of the map (owner request). It fires only on a real state
+// change — setSharing leaves sharingOn untouched on failure, and the
+// permission-denied auto-off path surfaces its own alert instead.
+const toastMsg = ref('')
+let toastTimer: number | undefined
+
+function showToast(message: string) {
+  toastMsg.value = message
+  window.clearTimeout(toastTimer)
+  toastTimer = window.setTimeout(() => {
+    toastMsg.value = ''
+  }, 3200)
+}
 
 function consentAlreadyGiven(): boolean {
   try {
@@ -207,7 +210,18 @@ function onShareToggle(next: boolean) {
     consentOpen.value = true
     return
   }
-  void setSharing(next)
+  void applySharing(next)
+}
+
+async function applySharing(next: boolean) {
+  await setSharing(next)
+  if (sharingOn.value === next) {
+    showToast(
+      next
+        ? 'Location sharing on — visible to trip members.'
+        : 'Location sharing off. Your pin was removed.',
+    )
+  }
 }
 
 async function confirmConsent() {
@@ -217,7 +231,7 @@ async function confirmConsent() {
     // Storage blocked: ask again next time — the safe direction.
   }
   consentOpen.value = false
-  await setSharing(true)
+  await applySharing(true)
 }
 
 // ── Fit to group (FR-MAP-05) ───────────────────────────────────────────
@@ -225,6 +239,63 @@ const tripMap = ref<{ fitToGroup: () => void } | null>(null)
 function fitToGroup() {
   tripMap.value?.fitToGroup()
 }
+
+// ── Full-height map (v2.13-4, owner request: "whole screen as possible")
+// The canvas is measured against the real viewport instead of a fixed
+// 65 vh: height = innerHeight − (document-space top of the canvas) −
+// the docked tab bar. That keeps the bottom edge (and the attribution
+// line) glued just above the bar whatever the chrome above does —
+// trip name load, the amber sharing banner, offline banners — and it
+// self-corrects on resize/rotate. Until JS runs, the CSS fallback
+// (65 vh / 300 px min) keeps the first paint sane; the map component
+// observes the box and calls Leaflet's invalidateSize on the change.
+const mapShell = ref<HTMLDivElement | null>(null)
+const mapHeight = ref<number | null>(null)
+// The floor only guards against a degenerate sliver (a pathological
+// header taller than the viewport); when it binds the bottom edge may
+// slide under the glass tab bar — by design, content scrolls beneath
+// the glass (v2.13-2). In every normal case the measured height wins
+// and the canvas ends exactly above the bar.
+const MIN_MAP_PX = 300
+const TAB_BAR_FALLBACK_PX = 68
+
+function sizeMapToViewport() {
+  const shell = mapShell.value
+  if (!shell || typeof window === 'undefined') return
+  // Document-space top of the shell — stable under any scroll offset.
+  const docTop = shell.getBoundingClientRect().top + window.scrollY
+  const tabBar = document.querySelector('nav[aria-label="Trip sections"]')
+  const reserved =
+    (tabBar instanceof HTMLElement ? tabBar.offsetHeight : TAB_BAR_FALLBACK_PX) + 8
+  const available = Math.round(window.innerHeight - docTop - reserved)
+  mapHeight.value = Math.max(MIN_MAP_PX, available)
+}
+
+onMounted(async () => {
+  ticker = window.setInterval(() => {
+    nowMs.value = Date.now()
+  }, 1_000)
+  window.addEventListener('resize', sizeMapToViewport)
+  window.addEventListener('orientationchange', sizeMapToViewport)
+  if (!trip.value) await loadTrip()
+  await loadItinerary()
+  nextTick(sizeMapToViewport)
+})
+
+// Anything that changes the content above the canvas (the trip header
+// filling in, the sharing banner appearing, the stale banner, an error
+// line) moves its top edge — re-measure after the DOM settles.
+watch([loading, trip, sharingOn, loadError], () => {
+  nextTick(sizeMapToViewport)
+})
+
+onUnmounted(() => {
+  window.clearInterval(ticker)
+  window.clearTimeout(toastTimer)
+  window.removeEventListener('resize', sizeMapToViewport)
+  window.removeEventListener('orientationchange', sizeMapToViewport)
+  releaseWakeLockNow()
+})
 
 // ── Wake lock (FR-LOC-09, EI-02): only while the map is open + sharing ─
 watch(
@@ -269,48 +340,19 @@ useRealtimeTables(
       </Button>
     </div>
 
-    <!-- ── Sharing toggle (FR-LOC-02) + consent entry (FR-LOC-03) ────── -->
-    <Card v-if="!isArchived && myMembership?.user_id" class="mb-3">
-      <CardContent class="flex flex-wrap items-center justify-between gap-3 py-4">
-        <div class="min-w-0">
-          <p class="text-sm font-medium">Share my location</p>
-          <p class="text-muted-foreground text-xs">
-            Off by default. Only this trip's members see your pin, only while the app is open.
-            Nothing is stored once you switch it off.
-          </p>
-        </div>
-        <Switch
-          :model-value="sharingOn"
-          aria-label="Share my location with trip members"
-          data-testid="sharing-toggle"
-          @update:model-value="onShareToggle"
-        />
-      </CardContent>
-      <CardContent v-if="permissionError" class="pb-4">
-        <p class="text-destructive text-xs" role="alert">{{ permissionError }}</p>
-      </CardContent>
-      <CardContent v-else-if="channelStatus === 'error'" class="pb-4">
-        <p class="text-muted-foreground text-xs" role="status">
-          Live updates are unavailable right now — showing the last known positions.
-        </p>
-      </CardContent>
-    </Card>
-
-    <!-- ── Presence (FR-LOC-14) ──────────────────────────────────────── -->
-    <p
-      v-if="presentMembers.length > 0"
-      class="text-muted-foreground mb-3 flex flex-wrap items-center gap-1.5 text-xs"
-      data-testid="presence"
+    <!-- Day filter (FR-ITN-08) — v2.13-4: one scrollable clip line of
+         pills, mirroring the itinerary page's day filter (owner
+         request). The row never wraps; touch/trackpad scroll sideways,
+         the scrollbar is hidden, and the pills reach edge-to-edge. -->
+    <div
+      class="day-filter -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      role="group"
+      aria-label="Filter markers by day"
     >
-      <span class="bg-primary inline-block size-2 animate-pulse rounded-full" aria-hidden="true" />
-      In the app now: {{ presentMembers.map((m) => m.display_name).join(', ') }}
-    </p>
-
-    <!-- Day filter (FR-ITN-08) -->
-    <div class="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filter markers by day">
       <Button
         size="sm"
         :variant="selectedDay === 'all' ? 'default' : 'outline'"
+        class="shrink-0"
         :aria-pressed="selectedDay === 'all'"
         @click="selectedDay = 'all'"
       >
@@ -321,6 +363,7 @@ useRealtimeTables(
         :key="day.id"
         size="sm"
         :variant="selectedDay === day.id ? 'default' : 'outline'"
+        class="shrink-0"
         :aria-pressed="selectedDay === day.id"
         :disabled="!dayWithItems(day.id)"
         @click="selectedDay = day.id"
@@ -329,68 +372,134 @@ useRealtimeTables(
       </Button>
     </div>
 
-    <p v-if="loading" class="text-muted-foreground py-10 text-center text-sm">Loading map…</p>
-    <p v-else-if="loadError" class="text-destructive py-10 text-center text-sm">{{ loadError }}</p>
+    <!-- v2.13-4: the canvas is always mounted (owner request: whole
+         screen) — loading, load errors and the empty state render as
+         overlays over it, and the share-location control below has a
+         fixed home in the lower-left corner whatever the data state.
+         `isolate` wraps the whole shell in one stacking context (same
+         pattern as the TripMap root): the overlays' high z-indexes
+         (450/500) stay INSIDE the shell, so app chrome (header z-50),
+         dialogs (z-50) and the tour overlay (z-90) keep painting above
+         the map screen — without it the empty-state overlay covered
+         the onboarding tour's Next button. -->
+    <div
+      ref="mapShell"
+      :style="mapHeight ? { height: `${mapHeight}px` } : undefined"
+      class="relative isolate h-[65vh] min-h-[300px] overflow-hidden rounded-2xl border border-border/70 shadow-lg shadow-emerald-950/5"
+      data-testid="map-container"
+      data-tour="map-canvas"
+    >
+      <TripMap ref="tripMap" :markers="markers" :member-pins="memberPins" :show-locate="true" />
 
-    <template v-else>
-      <!-- Empty state (NFR-UX-06, M6): nothing to pin yet -->
-      <EmptyState
-        v-if="markers.length === 0 && memberPins.length === 0"
-        title="Nothing on the map yet"
-        description="Add a place to an itinerary item and it appears here as a numbered stop. Members sharing their location show up as live pins."
-        data-tour="map-canvas"
-      >
-        <template #action>
-          <Button variant="outline" as-child>
-            <NuxtLink :to="`/trips/${tripId}/itinerary`">Open the itinerary</NuxtLink>
-          </Button>
-        </template>
-      </EmptyState>
-
+      <!-- Loading / error / empty overlays (over the canvas) ──────── -->
       <div
-        v-else
-        class="h-[65vh] min-h-[420px] overflow-hidden rounded-xl border"
-        data-testid="map-container"
-        data-tour="map-canvas"
+        v-if="loading"
+        class="absolute inset-0 z-[450] grid place-items-center bg-background/60"
       >
-        <TripMap ref="tripMap" :markers="markers" :member-pins="memberPins" :show-locate="true" />
+        <p class="text-muted-foreground text-sm">Loading map…</p>
+      </div>
+      <div
+        v-else-if="loadError"
+        class="absolute inset-0 z-[450] grid place-items-center bg-background/60 p-6"
+      >
+        <p class="text-destructive text-center text-sm" role="alert">{{ loadError }}</p>
+      </div>
+      <div
+        v-else-if="markers.length === 0 && memberPins.length === 0"
+        class="absolute inset-0 z-[450] grid place-items-center p-4"
+      >
+        <!-- Empty state (NFR-UX-06, M6): nothing to pin yet -->
+        <EmptyState
+          class="w-full max-w-sm"
+          title="Nothing on the map yet"
+          description="Add a place to an itinerary item and it appears here as a numbered stop. Members sharing their location show up as live pins."
+        >
+          <template #action>
+            <Button variant="outline" as-child>
+              <NuxtLink :to="`/trips/${tripId}/itinerary`">Open the itinerary</NuxtLink>
+            </Button>
+          </template>
+        </EmptyState>
       </div>
 
-      <!-- Legend + attribution note (FR-MAP-02: distinct pin types) -->
+      <!-- Status line from the removed card (FR-LOC-10/NFR-REL-02):
+           the permission how-to and the realtime-degraded note float
+           over the canvas so they survive without the card. ───────── -->
       <div
-        v-if="markers.length > 0 || memberPins.length > 0"
-        class="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs"
+        v-if="permissionError"
+        class="absolute inset-x-3 top-3 z-[500] max-h-36 overflow-y-auto rounded-xl border border-border/70 bg-background/95 px-3 py-2 text-xs shadow"
       >
-        <span class="inline-flex items-center gap-1.5">
-          <span class="bg-primary inline-block h-3.5 w-3.5 rounded-full" aria-hidden="true"></span>
-          Itinerary stops (numbered in trip order)
-        </span>
-        <span class="inline-flex items-center gap-1.5">
-          <span
-            class="inline-block h-3.5 w-3.5 rounded-full"
-            style="background: #2563eb"
-            aria-hidden="true"
-          ></span>
-          Members sharing location
-        </span>
-        <span class="inline-flex items-center gap-1.5">
-          <span
-            class="inline-block h-3.5 w-3.5 rounded-full"
-            style="background: #9ca3af"
-            aria-hidden="true"
-          ></span>
-          Last seen (greyed after 2 min, hidden after 30)
-        </span>
-        <span v-if="demoOn" class="inline-flex items-center gap-1.5">
-          <span
-            class="inline-block h-3.5 w-3.5 rounded-full border border-dashed"
-            style="background: #a78bfa"
-            aria-hidden="true"
-          ></span>
-          Demo members (simulated)
-        </span>
+        <p class="text-destructive" role="alert">{{ permissionError }}</p>
       </div>
-    </template>
+      <div
+        v-else-if="channelStatus === 'error'"
+        class="absolute inset-x-3 top-3 z-[500] rounded-xl border border-border/70 bg-background/95 px-3 py-2 text-xs shadow"
+      >
+        <p class="text-muted-foreground" role="status">
+          Live updates are unavailable right now — showing the last known positions.
+        </p>
+      </div>
+
+      <!-- ── Share my location (FR-LOC-02) — v2.13-4: the card became
+           an on/off button floating in the map's lower-left corner
+           (owner request). The consent dialog (below) still guards the
+           first switch-on exactly as before. ─────────────────────── -->
+      <button
+        v-if="!isArchived && myMembership?.user_id"
+        type="button"
+        :data-state="sharingOn ? 'checked' : 'unchecked'"
+        :aria-pressed="sharingOn"
+        aria-label="Share my location with trip members"
+        data-testid="sharing-toggle"
+        :class="[
+          'absolute bottom-6 left-3 z-[500] grid size-11 place-items-center rounded-full border transition-all duration-200 ease-ios active:scale-[0.97] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          sharingOn
+            ? 'border-primary/50 bg-primary text-primary-foreground shadow-[inset_0_1px_0_0_var(--btn-sheen),0_0_0_4px_rgb(4_120_87_/_0.18),0_10px_24px_-10px_rgb(3_18_12_/_0.45)]'
+            : 'border-border/70 bg-background/85 text-foreground shadow-[inset_0_1px_0_0_var(--glass-highlight),0_6px_18px_-8px_rgb(3_18_12_/_0.3)] backdrop-blur-md hover:bg-background',
+        ]"
+        @click="onShareToggle(!sharingOn)"
+      >
+        <!-- Broadcast icon: a dot radiating waves — the "I am sharing"
+             metaphor; solid primary once on. -->
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          class="size-5"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="16.6" r="1.7" fill="currentColor" stroke="none" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M7.5 12.6a6.4 6.4 0 0 1 9 0"
+          />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M4.6 9.7a10.5 10.5 0 0 1 14.8 0"
+          />
+        </svg>
+        <span
+          v-if="sharingOn"
+          class="bg-primary-foreground/95 absolute top-1.5 right-1.5 size-2 animate-pulse rounded-full"
+          aria-hidden="true"
+        />
+      </button>
+
+      <!-- ── Toggle toast (v2.13-4, owner request) ─────────────────── -->
+      <Transition name="map-toast">
+        <div
+          v-if="toastMsg"
+          data-testid="map-toast"
+          role="status"
+          class="glass-blur absolute bottom-20 left-1/2 z-[500] max-w-[80%] -translate-x-1/2 rounded-full px-4 py-2 text-center text-xs font-medium"
+        >
+          {{ toastMsg }}
+        </div>
+      </Transition>
+    </div>
 
     <!-- ── Location sharing consent (UI-13, FR-LOC-03) ───────────────── -->
     <Dialog v-model:open="consentOpen">
@@ -433,3 +542,39 @@ useRealtimeTables(
     </Dialog>
   </section>
 </template>
+
+<style scoped>
+/* v2-13-4: same Chromium mitigation as the itinerary day filter
+   (v2.13-3): pills inside an overflow-x-auto scroller never carry
+   backdrop-filter — Chromium composites the child against the
+   scroller's UNPAINTED overflow region and shows a sharp-cornered
+   black plate behind the glass. The pills scroll with the page
+   (nothing passes beneath them), so they take the resting material. */
+.day-filter :deep(.glass-btn) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Toggle toast: a quick rise+fade, safe for reduced motion. */
+.map-toast-enter-active,
+.map-toast-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.map-toast-enter-from,
+.map-toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-toast-enter-active,
+  .map-toast-leave-active {
+    transition: opacity 0.01s linear;
+  }
+  .map-toast-enter-from,
+  .map-toast-leave-to {
+    transform: translate(-50%, 0);
+  }
+}
+</style>

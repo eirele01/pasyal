@@ -430,7 +430,7 @@ const drillNetCheck = computed(() => {
          Standalone — the snapshot content below must still render. -->
     <p
       v-if="stale && !loadError"
-      class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+      class="rounded-xl border border-amber-300/80 bg-amber-50/85 px-4 py-3 text-sm text-amber-900 shadow-sm backdrop-blur-sm dark:border-amber-600/40 dark:bg-amber-950/60 dark:text-amber-200"
       role="status"
       data-testid="stale-banner"
     >
@@ -455,7 +455,7 @@ const drillNetCheck = computed(() => {
       <!-- ── All settled (FR-SET-05) ────────────────────────────────── -->
       <div
         v-if="settled"
-        class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-5 text-center dark:border-emerald-900 dark:bg-emerald-950/40"
+        class="rounded-2xl border border-emerald-200/80 bg-emerald-50/80 px-4 py-5 text-center shadow-sm backdrop-blur-sm dark:border-emerald-900 dark:bg-emerald-950/40"
         role="status"
       >
         <p class="font-semibold text-emerald-700 dark:text-emerald-400">All settled</p>
@@ -477,7 +477,7 @@ const drillNetCheck = computed(() => {
             <li v-for="balance in balances" :key="balance.member_id">
               <button
                 type="button"
-                class="flex w-full flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left hover:bg-muted/40"
+                class="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/45 px-4 py-3 text-left transition-colors hover:bg-muted/40"
                 @click="drillTarget = balance"
               >
                 <span class="flex min-w-0 items-center gap-3">
@@ -536,7 +536,7 @@ const drillNetCheck = computed(() => {
             <div
               v-for="(payment, index) in suggestions"
               :key="index"
-              class="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3"
+              class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-card/45 px-4 py-3"
             >
               <p class="min-w-0 text-sm">
                 <span class="font-medium">{{ memberName(payment.fromMemberId) }}</span>
@@ -577,7 +577,7 @@ const drillNetCheck = computed(() => {
           <div
             v-for="s in settlements"
             :key="s.id"
-            class="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3"
+            class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-card/45 px-4 py-3"
           >
             <div class="min-w-0">
               <p class="text-sm">
@@ -632,7 +632,7 @@ const drillNetCheck = computed(() => {
               <select
                 id="settlement-from"
                 v-model="recordFrom"
-                class="border-input bg-background h-9 rounded-md border px-3 text-sm"
+                class="field h-9 px-3"
               >
                 <option v-for="m in membersCanonical" :key="m.id" :value="m.id">
                   {{ m.display_name }}
@@ -644,8 +644,12 @@ const drillNetCheck = computed(() => {
               <select
                 id="settlement-to"
                 v-model="recordTo"
-                class="border-input bg-background h-9 rounded-md border px-3 text-sm"
+                class="field h-9 px-3"
               >
+                <!-- v2-13: visible placeholder instead of a blank box when
+                     the dialog opens generically (suggested payments prefill
+                     both fields; the submit guard still blocks empties). -->
+                <option value="" disabled>Select member</option>
                 <option v-for="m in membersCanonical" :key="m.id" :value="m.id">
                   {{ m.display_name }}
                 </option>
