@@ -555,6 +555,20 @@ useRealtimeTables(
   backdrop-filter: none;
 }
 
+/* v2-13-6 (owner request): day pills whose day has no located item render
+   DISABLED, and the global NFR-UX-02 touch-target rule only sizes ENABLED
+   buttons (`button:not(:disabled)` → min-height 44 px on coarse pointers)
+   — so a "no location or pin" day kept the 32 px sm height while its
+   enabled neighbours stretched to 44 px: a ragged two-height row on
+   phones. Every pill in this row carries the same min-height, enabled
+   or not. (Fine pointers are untouched: every pill stays its 32 px sm
+   height there — already uniform.) */
+@media (pointer: coarse) {
+  .day-filter :deep(button) {
+    min-height: 2.75rem;
+  }
+}
+
 /* Toggle toast: a quick rise+fade, safe for reduced motion. */
 .map-toast-enter-active,
 .map-toast-leave-active {

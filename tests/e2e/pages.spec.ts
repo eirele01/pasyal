@@ -8,7 +8,7 @@
  *
  * The mocked data mirrors the RPC shapes from app/types/database.types.ts.
  */
-import { expect, test, type Route } from '@playwright/test'
+import { devices, expect, test, type Route } from '@playwright/test'
 
 const FAKE_USER_ID = '00000000-0000-4000-8000-0000000000e1'
 
@@ -722,6 +722,68 @@ test('the map shows numbered markers, a day filter and attribution (UI-12, FR-IT
   await expect(chips.first()).toBeVisible({ timeout: 5_000 })
   await chips.first().click()
   await expect(chips).toHaveCount(0, { timeout: 5_000 })
+})
+
+test('the day-filter pills render at one height on touch screens, including days with no located stop (v2.13-6)', async ({
+  browser,
+}) => {
+  // The owner report: on a phone (coarse pointer) the day pills whose day
+  // has no located item ("no active location or pin") are disabled — and
+  // the global NFR-UX-02 touch-target rule sizes only ENABLED buttons
+  // (`button:not(:disabled)` → 44 px), so the disabled pills kept the
+  // 32 px sm height while their enabled neighbours stretched to 44 px:
+  // a ragged two-height row. The fix gives every pill in the row the same
+  // min-height, enabled or disabled.
+  const context = await browser.newContext({ ...devices['Pixel 5'] })
+  const page = await context.newPage()
+
+  await signInWithLocations(page, `/trips/${TRIP_ID}/map`)
+
+  // A third day with an item that has NO location gives the row both
+  // enabled and disabled pills. Registered AFTER the blanket handler so
+  // these specific endpoints win the match (the place-search spec uses
+  // the same pattern); then a reload refetches through them.
+  const D3 = '00000000-0000-4000-8000-0000000000d3'
+  await page.route('**/rest/v1/itinerary_days*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        ...mockDays,
+        { id: D3, trip_id: TRIP_ID, day_index: 2, date: '2026-03-03', title: null },
+      ]),
+    })
+  })
+  await page.route('**/rest/v1/itinerary_items*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        ...mockItineraryItems,
+        mockItem('00000000-0000-4000-8000-0000000000i5', D3, 0, {
+          title: 'Museum day (no spot)',
+        }),
+      ]),
+    })
+  })
+  await page.reload()
+
+  const pills = page.getByRole('group', { name: 'Filter markers by day' }).getByRole('button')
+  await expect(pills).toHaveCount(4) // All days, Day 1, Day 2, Day 3
+  await expect(pills.first()).toBeEnabled() // All days
+  await expect(pills.filter({ hasText: 'Day 3' })).toBeDisabled() // no located stop
+
+  // The contract: EVERY pill in the row renders at the same height —
+  // the 44 px touch-target height the enabled pills already carry.
+  const heights = await pills.evaluateAll((els) =>
+    els.map((el) => (el as HTMLElement).getBoundingClientRect().height),
+  )
+  expect(heights).toHaveLength(4)
+  expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(1)
+  expect(heights[0]).toBeGreaterThanOrEqual(44)
+  expect(heights[0]).toBeLessThanOrEqual(44.5)
+
+  await context.close()
 })
 
 test('the add-item form renders place search, the day select and the pin map (UI-11, FR-ITN-03)', async ({
