@@ -140,17 +140,22 @@ async function signOut() {
       <NuxtPage />
     </main>
 
-    <footer class="border-t border-border/60">
-      <!-- v2.13-2: 4.5rem → 5rem — the docked tab bar (67.5 px + safe
-           area) still ends just above the footer's last line; the extra
-           8 px keeps a visible gap instead of a hairline. -->
-      <div
-        class="text-muted-foreground mx-auto flex w-full max-w-5xl flex-col gap-1 px-4 pt-5 pb-[calc(5rem+env(safe-area-inset-bottom))] text-xs sm:flex-row sm:items-center sm:justify-between sm:pb-5"
-      >
-        <p>Pasyal — group travel, sorted</p>
-        <p>Location sharing is opt-in, off by default, and stops when the app closes.</p>
-      </div>
-    </footer>
+    <!-- v2.13-7 (owner): the global footer is REMOVED. On medium-to-large
+         screens it was structurally invisible on every trip screen — the
+         fixed docked tab bar (v2.13-2, visible at every width) covers the
+         last 68 px of the document, and the footer's sm:pb-5 clearing
+         padding (20 px) was never enough to lift its text above it; even
+         fully scrolled it sat entirely behind the glass. Making it clear
+         the bar would have meant either a global ~80 px dead gap on the
+         many screens with NO tab bar (trips list, settings, account,
+         auth, join) or coupling this global shell to per-page chrome.
+         Nothing of substance is lost: the brand line lives in the sticky
+         header on every screen, and the "opt-in, off by default" privacy
+         line is already stated verbatim in more relevant places — the
+         landing hero, the landing map section, the sign-in and join
+         screens, and the location consent sheet. The docked tab bar is
+         the app's bottom chrome; a document footer behind it was a
+         website pattern this PWA does not need. -->
 
     <!-- ── Mobile account menu (iOS pass, 2026-11-12) ───────────────────
          Phone-width replacement for the header nav: an inset-grouped list

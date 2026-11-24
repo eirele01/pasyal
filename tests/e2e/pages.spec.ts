@@ -786,6 +786,39 @@ test('the day-filter pills render at one height on touch screens, including days
   await context.close()
 })
 
+test('the global footer is removed — the docked tab bar is the bottom chrome at every width (v2.13-7)', async ({
+  page,
+}) => {
+  // The owner report: on medium-to-large screens the footer "cannot be
+  // seen" — and it never could be on trip screens. The fixed docked tab
+  // bar (v2.13-2) covers the last ~68 px of the document at EVERY
+  // width, while the footer's sm:pb-5 clearing padding (20 px) left its
+  // whole body behind the glass even fully scrolled. Padding it clear
+  // globally would add a ~80 px dead gap to every screen with no tab
+  // bar (trips list, settings, account, auth, join), and route-scoping
+  // the padding would couple the global shell to per-page chrome — so
+  // the footer is removed instead: its brand line lives in the sticky
+  // header on every screen, and its "opt-in, off by default" privacy
+  // line is already stated in the landing hero, the landing map
+  // section, the sign-in and join screens and the consent sheet. This
+  // spec runs at the default Desktop Chrome viewport (1280×720) —
+  // exactly the medium-large class the owner saw it on.
+  await signInMocked(page)
+  // Non-trip screen (the trips list), where the footer used to render:
+  await expect(page.locator('footer')).toHaveCount(0)
+
+  // Trip screen, where it used to hide behind the docked glass bar —
+  // the mock session is already in place (a second visit to the sign-in
+  // page would bounce back to /trips), so just install the trip mocks
+  // and navigate directly.
+  await page.unroute('**/*')
+  await page.route('**/*', mockTripDetail)
+  await page.goto(`/trips/${TRIP_ID}/expenses`)
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+  await expect(page.locator('footer')).toHaveCount(0)
+  await expect(page.getByRole('navigation', { name: 'Trip sections' })).toBeVisible()
+})
+
 test('the add-item form renders place search, the day select and the pin map (UI-11, FR-ITN-03)', async ({
   page,
 }) => {
