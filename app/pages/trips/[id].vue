@@ -77,6 +77,12 @@ function isActive(path: string) {
   return route.path.startsWith(path)
 }
 
+/** v2.13-2 (owner request): the edit / archive / delete row is a
+ *  Members-tab control — it renders only on the trip's first tab
+ *  (`/trips/{id}`), so every other tab stays decluttered. The dialogs
+ *  stay mounted here (harmless) — only the triggers are gated. */
+const isMembersPage = computed(() => route.path === `/trips/${tripId}`)
+
 onMounted(async () => {
   await load()
   if (trip.value) {
@@ -154,10 +160,10 @@ async function deleteTrip() {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-3xl px-4 pt-8 pb-24">
+  <div class="mx-auto w-full max-w-3xl px-4 pt-8 pb-28">
     <!-- Loading / not found -->
     <div v-if="loading" class="text-muted-foreground py-16 text-center text-sm">Loading trip…</div>
-    <div v-else-if="!trip" class="rounded-xl border border-dashed py-16 text-center">
+    <div v-else-if="!trip" class="glass rounded-2xl border-dashed py-16 text-center">
       <p class="font-medium">Trip not found</p>
       <p class="text-muted-foreground mt-1 text-sm">
         You may not be a member, or the trip was deleted.
@@ -168,8 +174,12 @@ async function deleteTrip() {
     </div>
 
     <template v-else>
-      <!-- ── Header (FR-TRIP-04/05) ─────────────────────────────────── -->
-      <div class="mb-2 flex flex-wrap items-start justify-between gap-3">
+      <!-- ── Header (FR-TRIP-04/05) ───────────────────────────────────
+           v2.13-2 (owner): a true 2-column grid — Trip information |
+           status — so a long name truncates inside its own column and
+           the Active/Archived badge can never wrap below the title
+           (the old flex-wrap line let it drop when the name was long). -->
+      <div class="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1">
         <div class="min-w-0">
           <h1 class="truncate text-2xl font-bold tracking-tight">{{ trip.name }}</h1>
           <p class="text-muted-foreground mt-1 text-sm">
@@ -178,12 +188,12 @@ async function deleteTrip() {
             {{ trip.base_currency }}
           </p>
         </div>
-        <Badge :variant="isArchived ? 'outline' : 'default'">
+        <Badge class="justify-self-end" :variant="isArchived ? 'outline' : 'default'">
           {{ isArchived ? 'Archived' : 'Active' }}
         </Badge>
       </div>
 
-      <div v-if="isOwner && !isArchived" class="mb-4 flex flex-wrap gap-2">
+      <div v-if="isOwner && !isArchived && isMembersPage" class="mb-4 flex flex-wrap gap-2">
         <Button size="sm" variant="outline" @click="openEdit">Edit trip</Button>
         <Button size="sm" variant="outline" @click="archiveOpen = true">Archive</Button>
         <Button size="sm" variant="outline" class="text-destructive" @click="deleteOpen = true">
@@ -191,14 +201,14 @@ async function deleteTrip() {
         </Button>
       </div>
 
-      <p v-if="isArchived" class="text-muted-foreground mb-4 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+      <p v-if="isArchived" class="text-muted-foreground mb-4 rounded-xl border bg-muted/40 px-4 py-3 text-sm">
         This trip is archived and read-only. Location data was deleted when it was archived.
       </p>
 
       <!-- M5 FR-PWA-03: trip data loaded from the offline snapshot. -->
       <p
         v-if="tripStale"
-        class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        class="mb-4 rounded-xl border border-amber-300/80 bg-amber-50/85 px-4 py-3 text-sm text-amber-900 shadow-sm backdrop-blur-sm dark:border-amber-600/40 dark:bg-amber-950/60 dark:text-amber-200"
         role="status"
         data-testid="stale-banner"
       >
@@ -216,16 +226,17 @@ async function deleteTrip() {
       <NuxtPage />
 
       <!-- ── Bottom tab bar (UI-05, §10.2 mobile-first) ───────────────
-           iOS pass (2026-11-12): frosted material, icon-over-label
-           tabs with the emerald tint marking the active section (no
-           underline — tint is the iOS signal), and home-indicator
-           safe-area padding. -->
-      <nav
-        aria-label="Trip sections"
-        class="ios-material fixed inset-x-0 bottom-0 z-40 border-t border-border/60"
-      >
-        <div
-          class="mx-auto flex max-w-3xl items-stretch justify-between px-2 pb-[env(safe-area-inset-bottom)]"
+           v2.13-2 (owner): no longer floating — the bar sticks to the
+           bottom edge, edge-to-edge on phones and capped to the content
+           column (max-w-3xl) on wider screens. Still the liquid-glass
+           chrome (.ios-material): trip content scrolls beneath it and
+           melts through the blur; the emerald tint marks the active tab
+           (no underline — tint is the iOS signal); the glass and its
+           padding extend under the home-indicator safe area. -->
+      <div class="fixed inset-x-0 bottom-0 z-40">
+        <nav
+          aria-label="Trip sections"
+          class="ios-material mx-auto flex w-full max-w-3xl items-stretch justify-between rounded-t-[1.25rem] border-x border-t border-border/60 px-1.5 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))]"
         >
           <template v-for="tab in tabs" :key="tab.label">
             <NuxtLink
@@ -267,8 +278,8 @@ async function deleteTrip() {
               <span class="text-[10px]">{{ tab.note }}</span>
             </span>
           </template>
-        </div>
-      </nav>
+        </nav>
+      </div>
     </template>
 
     <!-- ── Edit trip dialog (FR-TRIP-04) ────────────────────────────── -->

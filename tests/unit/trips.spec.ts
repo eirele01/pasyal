@@ -7,6 +7,7 @@ import {
   buildInviteUrl,
   formatDate,
   formatDateRange,
+  formatDateShort,
   formatMoneyMinor,
   initialOf,
   myBalanceLabel,
@@ -104,6 +105,10 @@ describe('myBalanceLabel (FR-TRIP-03)', () => {
 describe('date formatting', () => {
   it('formats a single date', () => {
     expect(formatDate('2026-03-01', 'en-US')).toBe('Mar 1, 2026')
+  })
+
+  it('formats a compact row date (no year)', () => {
+    expect(formatDateShort('2026-11-11', 'en-US')).toBe('Nov 11')
   })
 
   it('compacts a same-month range', () => {

@@ -124,7 +124,7 @@ async function resendConfirmation() {
               <label
                 v-for="guest in preview.guests_unclaimed"
                 :key="guest.member_id"
-                class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm has-checked:border-primary has-checked:bg-primary/5"
+                class="flex cursor-pointer items-center gap-3 rounded-xl border border-border/60 bg-card/45 p-3 text-sm transition-colors has-checked:border-primary has-checked:bg-primary/10"
               >
                 <input
                   v-model="claimMemberId"
@@ -141,7 +141,7 @@ async function resendConfirmation() {
                 </span>
               </label>
               <label
-                class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm has-checked:border-primary has-checked:bg-primary/5"
+                class="flex cursor-pointer items-center gap-3 rounded-xl border border-border/60 bg-card/45 p-3 text-sm transition-colors has-checked:border-primary has-checked:bg-primary/10"
               >
                 <input
                   v-model="claimMemberId"

@@ -12,7 +12,7 @@ defineProps<{
 
 <template>
   <div
-    class="rounded-xl border border-dashed px-6 py-10 text-center"
+    class="glass rounded-2xl border-dashed px-6 py-10 text-center"
     role="status"
     data-testid="empty-state"
   >

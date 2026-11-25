@@ -312,7 +312,7 @@ async function save() {
               />
               <select
                 aria-label="Currency"
-                class="border-input bg-background ring-offset-background h-9 shrink-0 rounded-md border px-3 text-sm disabled:opacity-70"
+                class="field h-9 shrink-0 px-3 disabled:opacity-70"
                 disabled
                 title="Pasyal uses the trip base currency only"
               >
@@ -336,7 +336,7 @@ async function save() {
             id="expense-category"
             v-model="category"
             aria-label="Category"
-            class="border-input bg-background h-9 rounded-md border px-3 text-sm"
+            class="field h-9 px-3"
           >
             <option v-for="c in EXPENSE_CATEGORIES" :key="c.value" :value="c.value">
               {{ c.label }}
@@ -366,7 +366,7 @@ async function save() {
               :id="`payer-${index}`"
               v-model="row.memberId"
               :aria-label="`Payer ${index + 1}`"
-              class="border-input bg-background h-9 rounded-md border px-3 text-sm"
+              class="field h-9 px-3"
             >
               <option v-for="m in members" :key="m.id" :value="m.id">{{ m.display_name }}</option>
             </select>
@@ -532,7 +532,7 @@ async function save() {
           aria-label="Note"
           rows="2"
           maxlength="1000"
-          class="border-input bg-background placeholder:text-muted-foreground flex min-h-16 w-full rounded-md border px-3 py-2 text-sm"
+          class="field flex min-h-16 w-full px-3 py-2"
           placeholder="Anything worth remembering about this expense"
         />
         <p class="text-muted-foreground text-xs">

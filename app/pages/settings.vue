@@ -268,7 +268,7 @@ const guideSteps = computed(() => {
               v-for="(step, i) in guideSteps"
               :key="step.title"
               data-testid="install-guide-step"
-              class="flex items-start gap-3 rounded-xl border px-3 py-2.5"
+              class="flex items-start gap-3 rounded-xl border border-border/60 bg-card/45 px-3 py-2.5"
             >
               <span
                 class="bg-muted text-foreground mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl"

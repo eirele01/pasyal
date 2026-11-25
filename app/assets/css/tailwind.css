@@ -21,8 +21,11 @@
    * Motion: standard iOS easing tokens (--ease-ios*), 0.97 press
      scale on controls, 220 ms page transitions; everything collapses
      under prefers-reduced-motion.
-   * Materials: .ios-material (frosted, saturating translucency) for
-     the app chrome (header, tab bar) — see style-guide.md.
+   * Materials: the v2-13 liquid-glass system (see the block below) —
+     translucent surfaces with a specular top edge over a softly tinted
+     canvas; frosted blur only where content actually scrolls beneath
+     (header, tab bar, sheets, tour). Supersedes the 2026-11-12
+     .ios-material while keeping the class name.
    * Color palette (emerald brand) is UNCHANGED from M0–M6.
    ────────────────────────────────────────────────────────────────────── */
 @import "tailwindcss";
@@ -31,6 +34,9 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Native controls (form fields, scrollbars, <select> menus) follow
+     the active scheme — the v2-13 dark wiring flips this on .dark. */
+  color-scheme: light;
   --radius: 0.75rem;
   /* iOS systemGroupedBackground-equivalent neutral (#f5f5f5): the page
      canvas sits one step below white cards (2026-11-12 pass). */
@@ -69,11 +75,31 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.8077 0.1524 163.229);
+
+  /* ── Liquid glass (v2-13, 2026-11-21) ─────────────────────────────
+     Shared material tokens so every glass surface in the app is the
+     SAME glass: one hairline color, one specular highlight, one ambient
+     shadow, one button sheen. Light mode: white glass on a mint-washed
+     canvas. Dark mode: smoked glass on a deep emerald glow. */
+  --glass-border: color-mix(in oklab, var(--foreground) 9%, transparent);
+  --glass-highlight: rgb(255 255 255 / 0.6);
+  --glass-shadow: 0 1px 2px rgb(3 18 12 / 0.05), 0 10px 28px -14px rgb(3 18 12 / 0.18);
+  --glass-shadow-float: 0 2px 6px rgb(3 18 12 / 0.06), 0 16px 40px -12px rgb(3 18 12 / 0.28);
+  --btn-sheen: rgb(255 255 255 / 0.3);
 }
 
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
+  color-scheme: dark;
+  /* ── Liquid glass, dark scheme (v2-13): the highlight dims to a
+     moonlit rim and the shadows deepen — smoked glass on the dark
+     canvas's low emerald glow. */
+  --glass-border: color-mix(in oklab, var(--foreground) 13%, transparent);
+  --glass-highlight: rgb(255 255 255 / 0.08);
+  --glass-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -14px rgb(0 0 0 / 0.6);
+  --glass-shadow-float: 0 2px 6px rgb(0 0 0 / 0.45), 0 16px 40px -12px rgb(0 0 0 / 0.75);
+  --btn-sheen: rgb(255 255 255 / 0.12);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
@@ -171,18 +197,115 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+
+    /* Liquid glass canvas (v2-13): the page is no longer flat — two
+       soft emerald washes (one under the header, one at the fold's
+       end) give the translucent surfaces something to glow against.
+       Plain gradients only (no fixed attachment — iOS Safari ignores
+       it), tint kept within ~9% so every text-contrast pair still
+       clears WCAG AA against the canvas. */
+    background-image:
+      radial-gradient(
+        125% 58% at 50% -10%,
+        color-mix(in oklab, var(--primary) 9%, transparent),
+        transparent 62%
+      ),
+      radial-gradient(
+        95% 48% at 50% 108%,
+        color-mix(in oklab, var(--primary) 7%, transparent),
+        transparent 65%
+      );
+    background-repeat: no-repeat;
   }
 }
 
 @layer components {
-  /* Frosted, saturating material for the app chrome (header, tab bar) —
-     the "material" half of iOS Depth. Solid-color fallback is inherent:
-     the background color mix keeps text contrast even where
-     backdrop-filter is unsupported (Lighthouse-safe). */
+  /* ── Liquid glass materials (v2-13, style-guide.md → Materials) ────
+
+     .glass        — the resting surface: cards, list groups, stat
+                     blocks. Translucent (the canvas washes glow
+                     through), hairline border, 1px specular top edge,
+                     ambient shadow. NO backdrop-filter: these surfaces
+                     sit on the smooth canvas, so blur would only cost
+                     scroll performance (the 89–97 Lighthouse band is
+                     defended).
+     .glass-blur   — the floating material: the account sheet, the
+                     tour card. Content scrolls beneath these, so they
+                     get the blur + saturation that makes glass read as
+                     glass.
+     .glass-btn    — the control material for outline/secondary
+                     buttons: compact, brighter glass with one shared
+                     hover/active fill, so every button in the app
+                     behaves identically.
+     .field        — the shared form-field material for inputs,
+                     selects and textareas (the Input component plus
+                     the raw selects in forms/filters), so every field
+                     on every page looks and focuses the same.
+
+     Solid-color fallback is inherent everywhere: the color-mix
+     background keeps text contrast where backdrop-filter is
+     unsupported (Lighthouse-safe, same contract as the 2026-11-12
+     .ios-material). */
+  .glass {
+    background-color: color-mix(in oklab, var(--card) 80%, transparent);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      var(--glass-shadow);
+  }
+
+  .glass-blur {
+    /* 64%: sheets read as frosted glass over the dimmed page (they sit
+       on a scrim, so the shapes behind melt through); the chrome keeps
+       its own, slightly denser mix in .ios-material for text contrast
+       over live content. */
+    background-color: color-mix(in oklab, var(--card) 64%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      var(--glass-shadow-float);
+  }
+
+  .glass-btn {
+    background-color: color-mix(in oklab, var(--card) 76%, transparent);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+    backdrop-filter: blur(12px) saturate(150%);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      0 1px 2px rgb(3 18 12 / 0.06);
+  }
+  .glass-btn:hover {
+    background-color: color-mix(in oklab, var(--card) 92%, transparent);
+  }
+  .glass-btn:active {
+    background-color: color-mix(in oklab, var(--card) 84%, transparent);
+  }
+
+  .field {
+    @apply border-input bg-card/55 rounded-lg border text-sm transition-[color,box-shadow,border-color] outline-none;
+    box-shadow: inset 0 1px 2px rgb(3 18 12 / 0.05);
+  }
+  .field:focus-visible {
+    @apply border-ring ring-ring/50 ring-[3px];
+  }
+  .field::placeholder {
+    @apply text-muted-foreground;
+  }
+
+  /* Frosted, saturating material for the app chrome (header, tab
+     bar) — the "material" half of iOS Depth. v2-13: this IS the
+     liquid-glass chrome now (the class name stays — app.vue and the
+     trip shell use it; consumers add their own hairline borders). */
   .ios-material {
-    background-color: color-mix(in oklab, var(--background) 82%, transparent);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    backdrop-filter: blur(20px) saturate(180%);
+    background-color: color-mix(in oklab, var(--card) 72%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      var(--glass-shadow-float);
   }
 }
 

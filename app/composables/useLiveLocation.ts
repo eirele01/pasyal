@@ -177,15 +177,32 @@ export function useLiveLocation(tripId: string) {
     engine.channel = null
   }
 
+  /**
+   * Broadcast helper (v2-13-10): realtime-js 2.119 deprecated send()'s
+   * implicit REST fallback — when the websocket cannot push (still
+   * joining, errored, or dropped mid-session), send() logs a
+   * deprecation warning while silently POSTing the broadcast. Push over
+   * the websocket only while the channel is joined, and deliver via an
+   * explicit httpSend() REST broadcast otherwise — the old fallback
+   * behavior minus the warning. Fire-and-forget either way: realtime
+   * failing must never break the screen (NFR-REL-02); a dropped REST
+   * 'position' just means the next cadence tick retries, and other
+   * members drop the pin within FR-LOC-02's 5 s via the persisted-row
+   * trigger even if a 'stopped' broadcast is lost.
+   */
+  function broadcastEvent(channel: RealtimeChannel, event: string, payload: unknown) {
+    if (channel.state === 'joined') {
+      void channel.send({ type: 'broadcast', event, payload })
+    } else {
+      void channel.httpSend(event, payload).catch(() => {})
+    }
+  }
+
   function broadcastStopped() {
     const engine = internals(tripId)
     const memberId = myMemberId.value
     if (!engine.channel || !memberId) return
-    void engine.channel.send({
-      type: 'broadcast',
-      event: 'stopped',
-      payload: { member_id: memberId },
-    })
+    broadcastEvent(engine.channel, 'stopped', { member_id: memberId })
   }
 
   /** FR-LOC-06: a freshly opened map shows the last persisted position. */
@@ -233,17 +250,15 @@ export function useLiveLocation(tripId: string) {
 
     if (shouldSendUpdate(engine.lastTransmit, point, now, config)) {
       engine.lastTransmit = { point, sentAtMs: now }
-      void engine.channel?.send({
-        type: 'broadcast',
-        event: 'position',
-        payload: {
+      if (engine.channel) {
+        broadcastEvent(engine.channel, 'position', {
           member_id: memberId,
           lat: point.lat,
           lng: point.lng,
           accuracy_m: accuracyM,
           heading,
-        } satisfies BroadcastPosition,
-      })
+        } satisfies BroadcastPosition)
+      }
     }
 
     if (shouldPersist(engine.lastPersistAt, now, config)) {

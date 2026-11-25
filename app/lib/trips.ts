@@ -76,6 +76,14 @@ export function formatDate(dateStr: string, locale?: string): string {
   }).format(date)
 }
 
+/** "Mar 1" — the compact form for dense list rows (the detail views
+ *  carry the full date). */
+export function formatDateShort(dateStr: string, locale?: string): string {
+  const date = parseLocalDate(dateStr)
+  if (Number.isNaN(date.getTime())) return dateStr
+  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(date)
+}
+
 /** "Mar 1 – 8, 2026" / "Dec 28, 2026 – Jan 4, 2027" */
 export function formatDateRange(startDate: string, endDate: string, locale?: string): string {
   const start = parseLocalDate(startDate)

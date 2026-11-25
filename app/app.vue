@@ -50,13 +50,21 @@ async function signOut() {
 
     <!-- iOS pass (2026-11-12): frosted, saturating material; sticky under
          the (translucent, when installed) status bar — the safe-area
-         padding drops to 0 in regular browsers. -->
-    <header class="ios-material sticky top-0 z-50 border-b border-border/60">
+         padding drops to 0 in regular browsers.
+         v2.13-2 (owner): the header's drop shadow is gone — the frosted
+         chrome and the specular top edge stay, the floating shadow does
+         not (a scoped override on this element only; the tab bar keeps
+         its shadow). -->
+    <header
+      class="ios-material sticky top-0 z-50 border-b border-border/60 [box-shadow:inset_0_1px_0_0_var(--glass-highlight)]"
+    >
       <div class="pt-[env(safe-area-inset-top)]">
         <div class="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-3 px-4">
         <div class="flex min-w-0 items-center gap-3">
           <NuxtLink to="/" class="flex items-center gap-2 font-semibold tracking-tight">
-            <span class="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-md">
+            <span
+              class="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-lg shadow-[inset_0_1px_0_0_var(--btn-sheen)]"
+            >
               <svg viewBox="0 0 24 24" fill="currentColor" class="size-4" aria-hidden="true">
                 <path
                   fill-rule="evenodd"
@@ -132,14 +140,22 @@ async function signOut() {
       <NuxtPage />
     </main>
 
-    <footer class="border-t">
-      <div
-        class="text-muted-foreground mx-auto flex w-full max-w-5xl flex-col gap-1 px-4 pt-5 pb-[calc(4.5rem+env(safe-area-inset-bottom))] text-xs sm:flex-row sm:items-center sm:justify-between sm:pb-5"
-      >
-        <p>Pasyal — group travel, sorted</p>
-        <p>Location sharing is opt-in, off by default, and stops when the app closes.</p>
-      </div>
-    </footer>
+    <!-- v2.13-7 (owner): the global footer is REMOVED. On medium-to-large
+         screens it was structurally invisible on every trip screen — the
+         fixed docked tab bar (v2.13-2, visible at every width) covers the
+         last 68 px of the document, and the footer's sm:pb-5 clearing
+         padding (20 px) was never enough to lift its text above it; even
+         fully scrolled it sat entirely behind the glass. Making it clear
+         the bar would have meant either a global ~80 px dead gap on the
+         many screens with NO tab bar (trips list, settings, account,
+         auth, join) or coupling this global shell to per-page chrome.
+         Nothing of substance is lost: the brand line lives in the sticky
+         header on every screen, and the "opt-in, off by default" privacy
+         line is already stated verbatim in more relevant places — the
+         landing hero, the landing map section, the sign-in and join
+         screens, and the location consent sheet. The docked tab bar is
+         the app's bottom chrome; a document footer behind it was a
+         website pattern this PWA does not need. -->
 
     <!-- ── Mobile account menu (iOS pass, 2026-11-12) ───────────────────
          Phone-width replacement for the header nav: an inset-grouped list
@@ -150,7 +166,10 @@ async function signOut() {
           <DialogTitle class="text-base">Account</DialogTitle>
           <DialogDescription class="truncate">{{ user?.email }}</DialogDescription>
         </DialogHeader>
-        <nav aria-label="Account menu" class="overflow-hidden rounded-xl border">
+        <nav
+          aria-label="Account menu"
+          class="rounded-xl border border-border/70 bg-card/40 shadow-[inset_0_1px_0_0_var(--glass-highlight)]"
+        >
           <NuxtLink
             to="/trips"
             class="hover:bg-accent/50 flex items-center justify-between border-b border-border/70 px-4 py-3.5 text-sm font-medium active:bg-accent/60"

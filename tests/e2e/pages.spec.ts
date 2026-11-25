@@ -8,7 +8,7 @@
  *
  * The mocked data mirrors the RPC shapes from app/types/database.types.ts.
  */
-import { expect, test, type Route } from '@playwright/test'
+import { devices, expect, test, type Route } from '@playwright/test'
 
 const FAKE_USER_ID = '00000000-0000-4000-8000-0000000000e1'
 
@@ -355,12 +355,20 @@ test('the expenses tab lists expenses with payers and totals (UI-06, FR-EXP-10)'
   await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
   await expect(page.getByText('₱24,000.00').first()).toBeVisible()
   await expect(page.getByText('paid by Ana · 5 sharers')).toBeVisible()
-  await expect(page.getByLabel('Filter by category')).toBeVisible()
-  await expect(page.getByLabel('Filter by payer')).toBeVisible()
   await expect(page.getByLabel('Search by title')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Add expense' })).toBeVisible()
 
+  // v2-13 Expenses pass: the filters live in a glass sheet behind the
+  // Filter button — category · member · date range (FR-EXP-10 unchanged).
+  await page.getByRole('button', { name: 'Filter' }).click()
+  await expect(page.getByLabel('Filter by category')).toBeVisible()
+  await expect(page.getByLabel('Filter by member')).toBeVisible()
+  await expect(page.getByLabel('From date')).toBeVisible()
+  await expect(page.getByLabel('To date')).toBeVisible()
+
   // Filters combine: category + title search (FR-EXP-10).
+  await page.getByLabel('Filter by category').selectOption('lodging')
+  await page.getByRole('button', { name: 'Done' }).click()
   await page.getByLabel('Search by title').fill('shinkansen')
   await expect(page.getByText('No expenses match the filters')).toBeVisible()
   await page.getByLabel('Search by title').fill('hotel')
@@ -378,6 +386,61 @@ test('the expense detail shows original and converted amounts and splits (UI-08,
   await expect(page.getByText('Equal split')).toBeVisible()
   await expect(page.getByText('Ana').first()).toBeVisible()
   await expect(page.getByText('₱4,800.00').first()).toBeVisible()
+
+  // v2.13-3 lock (merge-review follow-up): Edit and Delete are matched
+  // outline pills — identical height (the mock user created the expense,
+  // so canManage renders both).
+  const editBox = await page.getByRole('button', { name: 'Edit', exact: true }).boundingBox()
+  const deleteBox = await page.getByRole('button', { name: 'Delete', exact: true }).boundingBox()
+  expect(editBox).toBeTruthy()
+  expect(deleteBox).toBeTruthy()
+  expect(Math.abs(editBox!.height - deleteBox!.height)).toBeLessThan(1)
+  expect(editBox!.height).toBeGreaterThanOrEqual(32)
+})
+
+test('expense navigations run the page transitions without any Vue warning (v2-13-10)', async ({
+  page,
+}) => {
+  // The owner's v2-13-9 manual pass saw, on every detail↔edit swap, dev
+  // warnings "Component inside <Transition> renders non-element root node
+  // that cannot be animated" — the [expenseId].vue wrapper rendered a
+  // bare <NuxtPage /> root that Vue cannot animate. The wrapper now wraps
+  // its NuxtPage in a single (inert) <div>; this spec walks the full
+  // expenses flow through client-side navigation and locks the console
+  // clean: no [Vue warn] may be emitted on the dev server.
+  const vueWarnings: string[] = []
+  page.on('console', (msg) => {
+    if (msg.text().includes('[Vue warn]')) vueWarnings.push(msg.text())
+  })
+  page.on('pageerror', (err) => vueWarnings.push(String(err)))
+
+  await signInWithTrip(page, `/trips/${TRIP_ID}/expenses`)
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+
+  // list → detail (the [expenseId].vue wrapper enters via transition).
+  await page.getByRole('link', { name: /Tokyo hotel/ }).click()
+  await expect(page.getByRole('heading', { name: 'Tokyo hotel' })).toBeVisible()
+
+  // detail → edit (the swap inside the wrapper's NuxtPage — where the
+  // warnings used to fire).
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Edit expense' })).toBeVisible()
+
+  // edit → detail → list.
+  await page.getByRole('link', { name: '← Back to expense' }).click()
+  await expect(page.getByRole('heading', { name: 'Tokyo hotel' })).toBeVisible()
+  await page.getByRole('link', { name: '← Back to expenses' }).click()
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+
+  // list → new → list (new.vue leaves under the transition too).
+  await page.getByRole('link', { name: 'Add expense' }).click()
+  await expect(page.getByRole('heading', { name: 'Add expense' })).toBeVisible()
+  await page.getByRole('link', { name: '← Back to expenses' }).click()
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+
+  // Let the last out-in transition settle before judging the console.
+  await page.waitForTimeout(600)
+  expect(vueWarnings).toEqual([])
 })
 
 test('the add-expense form renders with payers, participants and split types (UI-07)', async ({
@@ -631,6 +694,17 @@ test('the itinerary shows days, ordered items, edited-by and maps links (UI-10, 
 
   // Extra-day management (FR-ITN-01).
   await expect(page.getByRole('button', { name: '+ Add day' })).toBeVisible()
+
+  // v2.13-2: the day-filter clip line — "All" + one pill per day; the
+  // filled pill narrows the day cards to that day, "All" restores them.
+  const dayFilter = page.getByRole('group', { name: 'Filter itinerary by day' })
+  await expect(dayFilter).toBeVisible()
+  await expect(dayFilter.getByRole('button', { name: 'All' })).toBeVisible()
+  await page.getByRole('button', { name: 'Day 2' }).click()
+  await expect(page.getByRole('heading', { name: 'Day 1' })).toBeHidden()
+  await expect(page.getByRole('heading', { name: 'Day 2' })).toBeVisible()
+  await page.getByRole('button', { name: 'All' }).click()
+  await expect(page.getByRole('heading', { name: 'Day 1' })).toBeVisible()
 })
 
 test('the map shows numbered markers, a day filter and attribution (UI-12, FR-ITN-08, FR-MAP-01/04)', async ({
@@ -659,7 +733,269 @@ test('the map shows numbered markers, a day filter and attribution (UI-12, FR-IT
   await page.getByRole('button', { name: 'Day 2' }).click()
   await expect(page.locator('.pasyal-marker')).toHaveCount(1)
   await expect(page.locator('.pasyal-marker').first()).toContainText('4')
-  await expect(page.getByText('Itinerary stops (numbered in trip order)')).toBeVisible()
+
+  // v2.13-4 (owner request): the legend row is gone — the pins' own
+  // colors speak for themselves now, and the off-screen chips (below)
+  // carry their own color and label.
+  await expect(page.getByText('Itinerary stops (numbered in trip order)')).toHaveCount(0)
+
+  // v2.13-4: the day filter is one scrollable clip line (mirroring the
+  // itinerary page) — the pills never wrap; the row is a single line.
+  const filterBox = await page
+    .getByRole('group', { name: 'Filter markers by day' })
+    .boundingBox()
+  expect(filterBox).toBeTruthy()
+  expect(filterBox!.height).toBeLessThan(50)
+
+  // v2.13-4: the canvas is measured to fill the viewport down to the
+  // docked tab bar instead of a fixed 65vh ("whole screen as possible").
+  const mapBox = await page.getByTestId('map-container').boundingBox()
+  const tabBarBox = await page.getByRole('navigation', { name: 'Trip sections' }).boundingBox()
+  expect(mapBox).toBeTruthy()
+  expect(tabBarBox).toBeTruthy()
+  expect(mapBox!.height).toBeGreaterThan(350)
+  expect(mapBox!.y + mapBox!.height).toBeLessThanOrEqual(tabBarBox!.y + 2)
+
+  // v2.13-4: the locate control is icon-only ("make the 'My location'
+  // button only") — the crosshair keeps its accessible name, the text
+  // label is gone.
+  const locate = page.getByRole('button', { name: 'Center the map on my location' })
+  await expect(locate).toBeVisible()
+  await expect(locate).not.toContainText('My location')
+
+  // v2.13-4: pan the lone stop off-screen and a direction chip appears
+  // on the map's edge pointing at it; tapping the chip pans straight
+  // back to the target and the chip row empties.
+  const startX = mapBox!.x + mapBox!.width / 2
+  const startY = mapBox!.y + mapBox!.height / 2 + 80 // clear of the centered marker
+  const drag = mapBox!.width / 2 + 60
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(startX - drag, startY, { steps: 12 })
+  await page.mouse.up()
+  const chips = page.locator('.pasyal-edge-indicator')
+  await expect(chips.first()).toBeVisible({ timeout: 5_000 })
+  await chips.first().click()
+  await expect(chips).toHaveCount(0, { timeout: 5_000 })
+})
+
+test('the day-filter pills render at one height on touch screens, including days with no located stop (v2.13-6)', async ({
+  browser,
+}) => {
+  // The owner report: on a phone (coarse pointer) the day pills whose day
+  // has no located item ("no active location or pin") are disabled — and
+  // the global NFR-UX-02 touch-target rule sizes only ENABLED buttons
+  // (`button:not(:disabled)` → 44 px), so the disabled pills kept the
+  // 32 px sm height while their enabled neighbours stretched to 44 px:
+  // a ragged two-height row. The fix gives every pill in the row the same
+  // min-height, enabled or disabled.
+  const context = await browser.newContext({ ...devices['Pixel 5'] })
+  const page = await context.newPage()
+
+  await signInWithLocations(page, `/trips/${TRIP_ID}/map`)
+
+  // A third day with an item that has NO location gives the row both
+  // enabled and disabled pills. Registered AFTER the blanket handler so
+  // these specific endpoints win the match (the place-search spec uses
+  // the same pattern); then a reload refetches through them.
+  const D3 = '00000000-0000-4000-8000-0000000000d3'
+  await page.route('**/rest/v1/itinerary_days*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        ...mockDays,
+        { id: D3, trip_id: TRIP_ID, day_index: 2, date: '2026-03-03', title: null },
+      ]),
+    })
+  })
+  await page.route('**/rest/v1/itinerary_items*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        ...mockItineraryItems,
+        mockItem('00000000-0000-4000-8000-0000000000i5', D3, 0, {
+          title: 'Museum day (no spot)',
+        }),
+      ]),
+    })
+  })
+  await page.reload()
+
+  const pills = page.getByRole('group', { name: 'Filter markers by day' }).getByRole('button')
+  await expect(pills).toHaveCount(4) // All days, Day 1, Day 2, Day 3
+  await expect(pills.first()).toBeEnabled() // All days
+  await expect(pills.filter({ hasText: 'Day 3' })).toBeDisabled() // no located stop
+
+  // The contract: EVERY pill in the row renders at the same height —
+  // the 44 px touch-target height the enabled pills already carry.
+  const heights = await pills.evaluateAll((els) =>
+    els.map((el) => (el as HTMLElement).getBoundingClientRect().height),
+  )
+  expect(heights).toHaveLength(4)
+  expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(1)
+  expect(heights[0]).toBeGreaterThanOrEqual(44)
+  expect(heights[0]).toBeLessThanOrEqual(44.5)
+
+  await context.close()
+})
+
+test('the global footer is removed — the docked tab bar is the bottom chrome at every width (v2.13-7)', async ({
+  page,
+}) => {
+  // The owner report: on medium-to-large screens the footer "cannot be
+  // seen" — and it never could be on trip screens. The fixed docked tab
+  // bar (v2.13-2) covers the last ~68 px of the document at EVERY
+  // width, while the footer's sm:pb-5 clearing padding (20 px) left its
+  // whole body behind the glass even fully scrolled. Padding it clear
+  // globally would add a ~80 px dead gap to every screen with no tab
+  // bar (trips list, settings, account, auth, join), and route-scoping
+  // the padding would couple the global shell to per-page chrome — so
+  // the footer is removed instead: its brand line lives in the sticky
+  // header on every screen, and its "opt-in, off by default" privacy
+  // line is already stated in the landing hero, the landing map
+  // section, the sign-in and join screens and the consent sheet. This
+  // spec runs at the default Desktop Chrome viewport (1280×720) —
+  // exactly the medium-large class the owner saw it on.
+  await signInMocked(page)
+  // Non-trip screen (the trips list), where the footer used to render:
+  await expect(page.locator('footer')).toHaveCount(0)
+
+  // Trip screen, where it used to hide behind the docked glass bar —
+  // the mock session is already in place (a second visit to the sign-in
+  // page would bounce back to /trips), so just install the trip mocks
+  // and navigate directly.
+  await page.unroute('**/*')
+  await page.route('**/*', mockTripDetail)
+  await page.goto(`/trips/${TRIP_ID}/expenses`)
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+  await expect(page.locator('footer')).toHaveCount(0)
+  await expect(page.getByRole('navigation', { name: 'Trip sections' })).toBeVisible()
+})
+
+test('the privacy promise is stated on all five carrier surfaces after the footer removal (v2.13-9, review R7)', async ({
+  page,
+}) => {
+  // The v2-13-7 footer removal made five surfaces the sole carriers of
+  // the location-privacy promise ("opt-in, off by default, only while
+  // the app is open") — the merge review's R7 noted nothing locked them.
+  // This spec is that lock: each surface keeps its own phrasing of the
+  // promise, so the assertions are per-surface verbatim.
+  await page.route('**/*', mockSupabase)
+
+  // 1. Landing hero + 2. landing map section (public, no auth).
+  await page.goto('/')
+  await expect(page.getByText('right now — opt-in, and only while the app is open.')).toBeVisible()
+  await expect(
+    page.getByText('Live location, opt-in and off by default — shared only while the app is open,'),
+  ).toBeVisible()
+
+  // 3. Sign-in screen (assert the note, then sign in on the same visit —
+  // the helper's pattern inlined to avoid a second page load).
+  await page.goto('/auth/signin')
+  await expect(page.locator('header nav')).toBeVisible()
+  await expect(
+    page.getByText('Location sharing is opt-in, off by default, and only works while the app is open.'),
+  ).toBeVisible()
+  await page.getByLabel('Email').fill('mock@pasyal.test')
+  await page.getByLabel('Password').fill('mock-password-1')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page).toHaveURL(/\/trips$/)
+
+  // 4. Join screen (the mocked valid invite preview renders the note).
+  await page.goto('/join/someinvitecode123')
+  await expect(page.getByText("You're invited to")).toBeVisible()
+  await expect(
+    page.getByText('Location sharing is opt-in, off by default, and only works while the app is open.'),
+  ).toBeVisible()
+
+  // 5. The location consent sheet (its "When:" line is the most exact
+  // statement of the promise). Declining keeps sharing off — nothing is
+  // granted here. The session is already active, so mirror the itinerary
+  // mocks + tile interception directly instead of the sign-in helper
+  // (a second sign-in visit would bounce off the live session).
+  await page.unroute('**/*')
+  await page.route('**/*', async (route) => {
+    const url = route.request().url()
+    if (url.endsWith('.png') && !url.includes('supabase')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      })
+      return
+    }
+    await mockTripDetailWithItinerary(route)
+  })
+  await page.goto(`/trips/${TRIP_ID}/map`)
+  const toggle = page.getByTestId('sharing-toggle')
+  await expect(toggle).toHaveAttribute('data-state', 'unchecked')
+  await toggle.click()
+  const consent = page.getByTestId('location-consent')
+  await expect(consent).toBeVisible()
+  await expect(consent.getByText(/only while you have this app open with sharing switched on/)).toBeVisible()
+  await expect(
+    consent.getByText(/It stops the moment you close the app or turn sharing off; it never runs in the background/),
+  ).toBeVisible()
+  await consent.getByRole('button', { name: 'Not now' }).click()
+  await expect(consent).not.toBeVisible()
+})
+
+test('the chrome keeps the v2-13-2 shadow contract and the trip header grid (v2.13-9, review follow-up)', async ({
+  page,
+}) => {
+  // Two v2-13-2 contracts with no standing lock: (a) the app header is
+  // shadow-free glass — only the specular inset edge remains, the drop
+  // shadow is overridden off — while the docked tab bar KEEPS its float
+  // shadow; (b) the trip header is a 2-column grid, so the Active badge
+  // sits beside the name in its own column (never wraps below it), the
+  // members meta line stays intact and the owner actions sit in one row.
+  await signInWithTrip(page, `/trips/${TRIP_ID}`)
+
+  // (b) Trip header grid: name, meta line, badge beside the name.
+  const heading = page.getByRole('heading', { name: 'Mock Trip' })
+  await expect(heading).toBeVisible()
+  await expect(page.getByText('Mar 1 – 8, 2026 · 5 members · PHP')).toBeVisible()
+  const badge = page.getByText('Active', { exact: true })
+  await expect(badge).toBeVisible()
+  const nameBox = await heading.boundingBox()
+  const badgeBox = await badge.boundingBox()
+  expect(nameBox).toBeTruthy()
+  expect(badgeBox).toBeTruthy()
+  // The badge's top aligns with the name's top region (same grid row, its
+  // own auto column — if it ever wrapped below the title its y would be
+  // a full line-height lower).
+  expect(badgeBox!.y).toBeGreaterThanOrEqual(nameBox!.y - 4)
+  expect(badgeBox!.y).toBeLessThanOrEqual(nameBox!.y + 12)
+  expect(badgeBox!.x).toBeGreaterThan(nameBox!.x + nameBox!.width / 2)
+
+  // Owner actions in one row on the Members tab (the mock user is the
+  // owner) — v2-13-2's single flex row.
+  await expect(page.getByRole('button', { name: 'Edit trip' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Archive', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeVisible()
+
+  // (a) Shadow contract: one inset shadow on the header — after stripping
+  // the parenthesized colors, no comma means no second (drop) shadow —
+  // while the tab bar's glass keeps BOTH the inset specular edge AND the
+  // float drop shadow (a comma separates the two shadows).
+  const shadows = await page.evaluate(() => {
+    const header = document.querySelector('header')
+    const bar = document.querySelector('nav[aria-label="Trip sections"]')
+    return {
+      header: header ? getComputedStyle(header).boxShadow : '',
+      bar: bar ? getComputedStyle(bar).boxShadow : '',
+    }
+  })
+  const shadowList = (s: string) => s.replace(/\([^)]*\)/g, '()')
+  expect(shadows.header).toContain('inset')
+  expect(shadowList(shadows.header)).not.toContain(',')
+  expect(shadows.bar).toContain('inset')
+  expect(shadowList(shadows.bar)).toContain(',')
 })
 
 test('the add-item form renders place search, the day select and the pin map (UI-11, FR-ITN-03)', async ({
@@ -766,8 +1102,15 @@ const mockSharingMembers = [
 
 // Timestamps are relative to the real clock so the freshness thresholds
 // (2 min stale / 30 min hidden, FR-LOC-08) behave deterministically.
+// v2.13-9 fix (merge-review follow-up): timestamps are computed PER REQUEST,
+// not at module import. The old module-level const froze "now" when the
+// worker loaded the file; the member-pins spec then ran minutes later and
+// Carla's "20 s ago" position silently crossed the 2-minute stale
+// threshold (app/lib/location.ts) — a latent time bomb that fired once
+// enough specs preceded it. Fresh per-request ages keep the fixture
+// deterministic no matter when the suite reaches the spec.
 const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString()
-const mockLocations = [
+const makeMockLocations = () => [
   { trip_id: TRIP_ID, member_id: M.carla, lat: 9.7425, lng: 118.7588, accuracy_m: 12, heading: null, updated_at: iso(20_000) },
   { trip_id: TRIP_ID, member_id: M.dan, lat: 11.1936, lng: 119.3903, accuracy_m: 180, heading: null, updated_at: iso(10 * 60_000) },
   { trip_id: TRIP_ID, member_id: M.ella, lat: 11.3203, lng: 119.3947, accuracy_m: 25, heading: null, updated_at: iso(40 * 60_000) },
@@ -784,7 +1127,7 @@ async function mockTripDetailWithLocations(route: Route) {
     return
   }
   if (url.includes('/rest/v1/member_locations')) {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockLocations) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeMockLocations()) })
     return
   }
   await mockTripDetailWithItinerary(route)
@@ -840,14 +1183,17 @@ test('the map renders member pins: live, greyed with last-seen, hidden after 30 
   await expect(danPin).toHaveClass(/stale/)
   await expect(danPin).toContainText('last seen')
 
-  // The visually distinct pin types are labelled in the legend (FR-MAP-02).
-  await expect(page.getByText('Members sharing location')).toBeVisible()
+  // v2.13-4 (owner request): the legend row and the "In the app now"
+  // presence line are gone — the pins' own colors, labels and last-seen
+  // subtitles carry the story now.
+  await expect(page.getByText('Members sharing location')).toHaveCount(0)
+  await expect(page.getByText(/In the app now/)).toHaveCount(0)
 
   // Fit to group is available with pins on screen (FR-MAP-05).
   await expect(page.getByTestId('fit-to-group')).toBeEnabled()
 })
 
-test('the sharing toggle asks for consent before the browser prompt, then shows the banner (FR-LOC-02/03/11, UI-13)', async ({
+test('the sharing toggle asks for consent before the browser prompt, then shows the banner on the Members tab (FR-LOC-02/03/11, UI-13)', async ({
   page,
 }) => {
   await signInWithLocations(page, `/trips/${TRIP_ID}/map`)
@@ -855,6 +1201,16 @@ test('the sharing toggle asks for consent before the browser prompt, then shows 
 
   const toggle = page.getByTestId('sharing-toggle')
   await expect(toggle).toHaveAttribute('data-state', 'unchecked')
+
+  // v2.13-4: the toggle is a floating on/off button pinned to the map's
+  // lower-left corner (the card is gone).
+  const toggleBox = await toggle.boundingBox()
+  const mapBox = await page.getByTestId('map-container').boundingBox()
+  expect(toggleBox).toBeTruthy()
+  expect(mapBox).toBeTruthy()
+  expect(toggleBox!.x).toBeGreaterThanOrEqual(mapBox!.x - 1)
+  expect(toggleBox!.x).toBeLessThanOrEqual(mapBox!.x + 24)
+  expect(toggleBox!.y).toBeGreaterThan(mapBox!.y + mapBox!.height - 120)
 
   // First switch-on opens the plain-language consent dialog — BEFORE any
   // browser permission prompt fires (FR-LOC-03).
@@ -874,20 +1230,44 @@ test('the sharing toggle asks for consent before the browser prompt, then shows 
 
   // Confirming switches sharing on: the flag update succeeds against the
   // mock, the geolocation watcher starts (permission granted, so the
-  // browser prompt path is exercised) and the persistent banner appears
-  // (FR-LOC-11). Ana now sees her own live pin too (FR-LOC-07).
+  // browser prompt path is exercised) and Ana now sees her own live pin
+  // too (FR-LOC-07).
   await toggle.click()
   await expect(page.getByTestId('location-consent')).toBeVisible()
   await page.getByTestId('consent-share').click()
   await expect(toggle).toHaveAttribute('data-state', 'checked', { timeout: 10_000 })
-  await expect(page.getByTestId('sharing-banner')).toBeVisible()
-  await expect(page.getByTestId('sharing-banner')).toContainText('Sharing location: visible to trip members')
+  // v2.13-4: the confirmation is a floating toast now (owner request).
+  await expect(page.getByTestId('map-toast')).toContainText('Location sharing on')
   await expect(page.locator('[data-testid="member-pin-' + M.ana + '"]')).toBeVisible({ timeout: 10_000 })
 
-  // Consent is remembered: switching off and on again goes straight through.
+  // v2.13-5 (owner request): the sharing banner renders ONLY on the
+  // Members tab — never on the map (or any other) trip tab.
+  await expect(page.getByTestId('sharing-banner')).toHaveCount(0)
+
+  // The banner still states who can see the position while sharing is on
+  // (FR-LOC-11) — on the Members tab (the trip home). Client-side tab
+  // switch: the wrapper keeps the banner component mounted, so the v-if
+  // itself must react to the route change.
+  await page.getByRole('link', { name: 'Members' }).click()
+  await expect(page).toHaveURL(new RegExp(`/trips/${TRIP_ID}/?$`))
+  await expect(page.getByTestId('sharing-banner')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('sharing-banner')).toContainText('Sharing location: visible to trip members')
+  await expect(page.getByTestId('sharing-banner')).toContainText('It stops when you close the app or switch sharing off')
+
+  // Consent is remembered: switching off and on again goes straight
+  // through, each flip confirmed by its own toast (v2.13-4). The banner
+  // follows the sharing flag on the Members tab (v2.13-5).
+  await page.getByRole('link', { name: 'Map' }).click()
+  await expect(page.getByRole('heading', { name: 'Map' })).toBeVisible()
   await toggle.click()
+  await expect(page.getByTestId('map-toast')).toContainText('Location sharing off')
+  await page.getByRole('link', { name: 'Members' }).click()
   await expect(page.getByTestId('sharing-banner')).not.toBeVisible()
+  await page.getByRole('link', { name: 'Map' }).click()
+  await expect(page.getByRole('heading', { name: 'Map' })).toBeVisible()
   await toggle.click()
+  await expect(page.getByTestId('map-toast')).toContainText('Location sharing on')
+  await page.getByRole('link', { name: 'Members' }).click()
   await expect(page.getByTestId('sharing-banner')).toBeVisible()
 })
 
@@ -912,7 +1292,9 @@ test('demo mode in settings adds clearly-labelled simulated pins that never touc
   await expect(page.locator('.pasyal-member-pin')).toHaveCount(5, { timeout: 15_000 })
   await expect(page.locator('.pasyal-member-pin.demo')).toHaveCount(3)
   await expect(page.locator('.pasyal-member-pin.demo').first()).toContainText('Demo')
-  await expect(page.getByText('Demo members (simulated)')).toBeVisible()
+  // v2.13-4: the demo legend chip went with the legend row; the pins
+  // themselves still carry the "· Demo" label (checked above).
+  await expect(page.getByText('Demo members (simulated)')).toHaveCount(0)
 })
 
 // ══════════════════════════════════════════════════════════════════════

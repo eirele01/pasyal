@@ -4,6 +4,11 @@
  * payers, per-participant splits with their raw split values, and the
  * activity trail for this expense (FR-EXP-09 audit). Edit (creator or
  * owner) and delete (soft, logged — BR-02) included.
+ *
+ * v2-13-3 (owner-requested): Edit renders as the same plain Button as
+ * Delete (was as-child + NuxtLink) — same element, same variant, same
+ * size — so the two pills can never drift apart in height in any
+ * browser (the anchor/button merge was the only asymmetry left).
  */
 import { categoryLabel } from '~/lib/expenses'
 import { formatDate, formatMoneyMinor } from '~/lib/trips'
@@ -148,9 +153,15 @@ const convertedLabel = computed(() => {
       >
         ← Back to expenses
       </NuxtLink>
-      <div v-if="canManage" class="flex gap-2">
-        <Button size="sm" variant="outline" as-child>
-          <NuxtLink :to="`/trips/${tripId}/expenses/${expenseId}/edit`">Edit</NuxtLink>
+      <div v-if="canManage" class="flex items-center gap-2">
+        <!-- v2-13-3: both actions are plain Buttons — identical chrome,
+             identical height; navigation happens in the handler. -->
+        <Button
+          size="sm"
+          variant="outline"
+          @click="navigateTo(`/trips/${tripId}/expenses/${expenseId}/edit`)"
+        >
+          Edit
         </Button>
         <Button size="sm" variant="outline" class="text-destructive" @click="deleteOpen = true">
           Delete

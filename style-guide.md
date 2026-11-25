@@ -101,21 +101,36 @@ comes from **layering** (scrim + slide), not heavy shadows.
 
 ---
 
-## 5. Materials — `.ios-material`
+## 5. Materials — the v2-13 liquid glass system
 
-The app chrome (header, tab bar) uses the frosted material defined in
-`tailwind.css`:
+The 2026-11-12 single `.ios-material` frost became a four-material
+family (all in `tailwind.css`, all sharing the `--glass-*` tokens so
+every surface in the app is the SAME glass):
 
-```css
-.ios-material {
-  background-color: color-mix(in oklab, var(--background) 82%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-}
-```
+| Class | Recipe | Where |
+|---|---|---|
+| `.glass` | `--card` @ 82% over the canvas washes · hairline `--glass-border` · inset 1 px `--glass-highlight` (the specular top edge) · `--glass-shadow` ambient — **no backdrop-filter** | cards, grouped lists, the expenses stat strip, empty states |
+| `.glass-blur` | `--card` @ 72% · `blur(24px) saturate(180%)` · same rim + float shadow | sheets/dialogs, the tour card, the place-search dropdown — surfaces content scrolls beneath |
+| `.glass-btn` | `--card` @ 76% · `blur(12px) saturate(150%)` · one shared hover/active fill | `outline` / `secondary` buttons |
+| `.ios-material` | the chrome recipe = `.glass-blur` (name kept) | header (v2.13-2: shadow-free — the float shadow is overridden off, the frost + specular edge stay), the docked bottom tab bar |
+| `.field` | `--card` @ 55% well · inset shadow · shared focus ring | every input, select, textarea |
 
-Rules: only persistent chrome gets the material; sheets get a hard
-scrim (`bg-black/50`); content never floats on blur. The 82% opaque mix
-keeps text contrast even where `backdrop-filter` is unsupported.
+Plus two supporting tokens: `--btn-sheen` (the saturated-glass top
+edge on primary/destructive fills) and the **canvas washes** — two
+≤ 7% emerald radial gradients on `body` (top + bottom) that give the
+translucent surfaces something to glow against. Rules that survive
+from D25: chrome is frosted or it isn't chrome; the scrim behind
+sheets stays a hard `bg-black/50` (a full-screen blurred scrim costs
+more than it reads); and every mix keeps text contrast where
+`backdrop-filter` is unsupported (Lighthouse-safe fallback).
+
+**Performance rule (why cards don't blur):** backdrop-filter on
+every list card would tax scroll on low-end phones for nothing — the
+canvas beneath them is a smooth gradient. Blur is spent only where
+content actually moves under glass: header, tab bar, sheets, tour,
+dropdowns. The 89–97 Lighthouse mobile band is defended (v2-13
+measured 84/90/90/89 across four sandbox runs — the 84 a cold-cache
+outlier; A11y 100 · BP 100 · LCP 1.20–1.27 s · TBT 400–620 ms).
 
 ---
 
@@ -146,31 +161,79 @@ Durations: 150–220 ms controls/page, 300 ms sheet slide (200 ms on ≥ sm).
 ## 7. Components
 
 ### Buttons (`ui/button/index.ts`)
-Pill, `select-none`, press-scale. Variants: `default` filled emerald ·
-`outline` hairline · `ghost` (icon/menu) · `destructive` · `link`.
+Pill, `select-none`, press-scale. Variants: `default` filled emerald
+**saturated glass** (inset `--btn-sheen` top edge + soft drop) ·
+`outline`/`secondary` the shared `.glass-btn` material · `ghost`
+(icon/menu) · `destructive` (same sheen) · `link`.
 Sizes: `sm` h-8 · default h-9 · `lg` h-11 (the 44 px iOS CTA).
 
-### Inputs (`ui/input`, `ui/textarea`)
-h-10, `rounded-lg`, 12 px, 16-px text on phones, soft emerald focus ring
-(`ring-[3px] ring-ring/50` + border tint).
+### Inputs (`ui/input`, `ui/textarea`, raw selects → `.field`)
+h-10, `rounded-lg`, 16-px text on phones, soft emerald focus ring
+(`ring-[3px] ring-ring/50` + border tint). All fields — component or
+raw `<select>` — wear the same `.field` material: a translucent well
+(`--card` @ 55%), inset shadow, one focus ring app-wide.
 
 ### Cards (`ui/card`) & grouped lists
-White `rounded-xl` cards on the gray page, `gap-4` internal rhythm.
-**Lists** are inset-grouped: one card, hairline `divide-y divide-border/70`,
-rows `px-4 py-3.5`, chevron affordance (inline SVG, 50% muted) when the
-row navigates, `active:` flash on touch. See the trips list, member list,
-expense list and the account sheet for the canonical pattern.
+`.glass` `rounded-2xl` (20 px) slabs on the washed canvas, `gap-4`
+internal rhythm. **Lists** are inset-grouped: one glass slab, hairline
+`divide-y divide-border/60`, rows `px-4 py-3.5` (the expense rows run
+slightly tighter — see below), chevron affordance
+(inline SVG, 50% muted) when the row navigates, `active:` flash on
+touch. Rows *inside* a card (balances, members, summary, install
+guide) sit in `bg-card/45` wells with `border-border/60` hairlines.
+See the trips list, member list, expense list and the account sheet
+for the canonical pattern.
+
+### Expense rows & the stat card (v2-13 Expenses pass)
+Every expense row is **three columns**: a 40-px category icon tile
+(`rounded-xl`, `bg-primary/10` + hairline border, one stroked line icon
+per category — bed · utensils · car · waves · bag · cube, labeled for
+screen readers via `role="img" :aria-label`) | title (15 px semibold,
+truncated) + one meta line (`Nov 11 · paid by X · N sharers`, 11-px
+caption, `formatDateShort` from `lib/trips` — the compact month-day
+form; detail views carry the full date) | amount (15 px semibold,
+`tabular-nums`) + the split-type pill (`equal`/`exact`/`percent`/
+`N shares`, outline Badge). Rows run `px-3 py-3` with `gap-2.5` — the
+measured tightest geometry that keeps the meta on one line at 390 px.
+The category name lives in the tile — no
+second category badge. The **stat card** is two purposeful rows:
+count label (small caps) + member-initial cluster on top, the big
+total + the add action below — never one wrapping flex line (that was
+the misaligned v2-13 original). The toolbar is a search field with a
+leading magnifier + a `Filter` pill that opens the glass sheet holding
+category / member / date-range — the same reactive refs as the old
+always-on grid, an active-count dot on the pill when any is set.
 
 ### Tab bar (`trips/[id].vue`)
-Fixed bottom, `.ios-material` + top hairline, icon-over-label tabs
-(24 px stroke icons, 11 px labels), **emerald tint = active** (no
-underline — tint is the iOS signal), `env(safe-area-inset-bottom)`
-padding above the home indicator. Five tabs: Expenses · Itinerary · Map ·
+**v2.13-2: docked glass bar** — the owner retired the floating
+capsule: the fixed wrapper now holds a `w-full max-w-3xl` `mx-auto`
+nav that **sticks to the bottom edge** (edge-to-edge on phones,
+capped to the content column on wider screens). `.ios-material` +
+hairline `border-x border-t`, `rounded-t-[1.25rem]` top corners only,
+and the glass with its padding extend under the home indicator
+(`pb-[calc(0.25rem+env(safe-area-inset-bottom))]`). Icon-over-label
+tabs (24 px stroke icons, 11 px labels), **emerald tint = active** (no
+underline — tint is the iOS signal). Trip content scrolls beneath and
+melts through the blur. Five tabs: Expenses · Itinerary · Map ·
 Balances · Members (UI-05).
 
+### Day filter rows (map + itinerary)
+The shared day-filter idiom: `role="group"` + `aria-label`, `Button
+size="sm"` pills, filled (`default`) = active, `aria-pressed` on every
+pill. The map disables days without located items (FR-ITN-08); the
+itinerary never disables — an empty day is still a valid jump target.
+Itinerary (v2.13-2, owner request): **one clip line** — `overflow-x-auto`
+with `shrink-0` pills and the scrollbar hidden
+(`[scrollbar-width:none]` + `[&::-webkit-scrollbar]:hidden`),
+`-mx-4 px-4` so pills scroll all the way to the content edge.
+"All" first, then every day (extra days included); the row renders
+only when there is more than one day and the list is loaded — and
+removing the filtered-to day falls back to "All".
+
 ### Sheets / dialogs (`ui/dialog`)
-Phones: bottom sheet — slides up, 24 px top corners, grabber pill,
-`pb-[max(1.25rem,env(safe-area-inset-bottom))]`, scrim behind, body
+Phones: bottom sheet — slides up, **`.glass-blur` panel** with 28 px
+(`rounded-t-[1.75rem]`) top corners, grabber pill,
+`pb-[max(1.25rem,env(safe-area-inset-bottom))]`, hard scrim behind, body
 scroll-locked (via reka-ui's `useBodyScrollLock`; the scrim and lock are
 rendered by our `DialogContent` — reka's `DialogOverlay` never mounted in
 this app, a latent M2 gap fixed 2026-11-12). ≥ 640 px: centered
@@ -186,10 +249,14 @@ Pill, `tabular-nums`. Money badges: filled emerald = owed to you,
 outline = settled context, destructive = you owe.
 
 ### Header (`app.vue`)
-Sticky, `.ios-material`, safe-area top padding (the installed PWA draws
-under a translucent status bar). Signed-out: Sign in + Sign up pills.
-Signed-in: full nav on ≥ 640 px; on phones a single person icon that
-opens the account sheet (Trips / Settings / Account / Sign out) — four
+Sticky, `.ios-material` **without the float shadow** (v2.13-2 owner
+request — the frosted blur, hairline border and specular top edge
+stay; the drop shadow is overridden off with a scoped
+`[box-shadow:inset_0_1px_0_0_var(--glass-highlight)]`), safe-area top
+padding (the installed PWA draws under a translucent status bar).
+Signed-out: Sign in + Sign up pills. Signed-in: full nav on ≥ 640 px;
+on phones a single person icon that opens the account sheet
+(Trips / Settings / Account / Sign out) — four
 header buttons physically do not fit 390 px.
 
 ---
@@ -215,10 +282,16 @@ header buttons physically do not fit 390 px.
 
 ## 9. Dark mode
 
-The grouped-surface logic inverts: near-black page (#0d0d0d), #171717
-cards, white/10 hairlines, emerald-500 primary with emerald-950 text on
-it. All contrast pairs verified ≥ AA. The frosted material mixes the
-dark background at 82% so blur stays subtle.
+**v2-13: the dark scheme is live.** `app/plugins/color-mode.client.ts`
+toggles `.dark` on `<html>` from `prefers-color-scheme` (and follows
+the OS live); until v2-13 the class was never set, so the verified dark
+palette below was dormant code. The grouped-surface logic inverts:
+near-black page (#0d0d0d), #171717 cards, white/10 hairlines,
+emerald-500 primary with emerald-950 text on it. All contrast pairs
+verified ≥ AA. The glass materials dim with the `--glass-*` dark
+tokens: the specular highlight drops to a 8% moonlit rim, shadows
+deepen — smoked glass on the canvas's low emerald glow. Native
+controls follow via `color-scheme`.
 
 ---
 

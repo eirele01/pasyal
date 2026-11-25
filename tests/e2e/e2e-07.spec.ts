@@ -10,8 +10,9 @@
  *      (Playwright context API — no real GPS needed).
  *   3. Ana opens the Map tab and flips the sharing toggle: the plain
  *      language consent dialog appears FIRST (FR-LOC-03, UI-13), she
- *      confirms, the persistent banner shows (FR-LOC-11) and her own pin
- *      renders (FR-LOC-07).
+ *      confirms, the banner shows on the Members tab (FR-LOC-11, moved
+ *      there by the v2.13-5 owner request) and her own pin renders
+ *      (FR-LOC-07).
  *   4. Ben does the same. Ana's map gains Ben's pin without a reload
  *      (broadcast over the private realtime channel, FR-LOC-02/05).
  *   5. The persisted rows exist for both (FR-LOC-06) — verified through
@@ -109,10 +110,16 @@ test('E2E-07: two devices share location, see pins, and stop cleanly', async ({ 
   await consent.getByTestId('consent-share').click()
 
   await expect(anaToggle).toHaveAttribute('data-state', 'checked', { timeout: 10_000 })
-  await expect(anaPage.getByTestId('sharing-banner')).toBeVisible() // FR-LOC-11
   await expect(anaPage.locator(`[data-testid="member-pin-${anaMemberId}"]`)).toBeVisible({
     timeout: 15_000,
   }) // her own pin (FR-LOC-07)
+
+  // v2.13-5 (owner request): the banner renders on the Members tab only —
+  // checked there (FR-LOC-11), then back to the map for the pin checks.
+  await anaPage.getByRole('link', { name: 'Members' }).click()
+  await expect(anaPage.getByTestId('sharing-banner')).toBeVisible({ timeout: 10_000 })
+  await anaPage.getByRole('link', { name: 'Map' }).click()
+  await expect(anaPage.getByRole('heading', { name: 'Map' })).toBeVisible({ timeout: 15_000 })
 
   // ── Ben enables sharing; the consent text names the trip ───────────
   await benPage.goto(`/trips/${tripId}/map`)
@@ -126,7 +133,12 @@ test('E2E-07: two devices share location, see pins, and stop cleanly', async ({ 
   await benConsent.getByTestId('consent-share').click()
 
   await expect(benToggle).toHaveAttribute('data-state', 'checked', { timeout: 10_000 })
-  await expect(benPage.getByTestId('sharing-banner')).toBeVisible()
+
+  // v2.13-5: Ben's banner too — Members tab only, then back to the map.
+  await benPage.getByRole('link', { name: 'Members' }).click()
+  await expect(benPage.getByTestId('sharing-banner')).toBeVisible({ timeout: 10_000 })
+  await benPage.getByRole('link', { name: 'Map' }).click()
+  await expect(benPage.getByRole('heading', { name: 'Map' })).toBeVisible({ timeout: 15_000 })
 
   // ── Ana sees Ben's pin without a reload (FR-LOC-02/05) ─────────────
   const benPinOnAnaMap = anaPage.locator(`[data-testid="member-pin-${benMemberId}"]`)
@@ -147,10 +159,13 @@ test('E2E-07: two devices share location, see pins, and stop cleanly', async ({ 
 
   // ── Ana switches off; Ben's pin for her disappears within 5 s ──────
   await anaToggle.click()
-  await expect(anaPage.getByTestId('sharing-banner')).not.toBeVisible()
   await expect(benPage.locator(`[data-testid="member-pin-${anaMemberId}"]`)).toHaveCount(0, {
     timeout: 5_000,
   }) // FR-LOC-02
+
+  // v2.13-5: the banner went with the flag — verified on the Members tab.
+  await anaPage.getByRole('link', { name: 'Members' }).click()
+  await expect(anaPage.getByTestId('sharing-banner')).not.toBeVisible()
 
   // The persisted row is deleted (FR-LOC-12), Ben's survives.
   const { data: afterOff } = await admin
