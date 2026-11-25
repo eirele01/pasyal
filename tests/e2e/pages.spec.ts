@@ -386,6 +386,16 @@ test('the expense detail shows original and converted amounts and splits (UI-08,
   await expect(page.getByText('Equal split')).toBeVisible()
   await expect(page.getByText('Ana').first()).toBeVisible()
   await expect(page.getByText('₱4,800.00').first()).toBeVisible()
+
+  // v2.13-3 lock (merge-review follow-up): Edit and Delete are matched
+  // outline pills — identical height (the mock user created the expense,
+  // so canManage renders both).
+  const editBox = await page.getByRole('button', { name: 'Edit', exact: true }).boundingBox()
+  const deleteBox = await page.getByRole('button', { name: 'Delete', exact: true }).boundingBox()
+  expect(editBox).toBeTruthy()
+  expect(deleteBox).toBeTruthy()
+  expect(Math.abs(editBox!.height - deleteBox!.height)).toBeLessThan(1)
+  expect(editBox!.height).toBeGreaterThanOrEqual(32)
 })
 
 test('the add-expense form renders with payers, participants and split types (UI-07)', async ({
@@ -819,6 +829,130 @@ test('the global footer is removed — the docked tab bar is the bottom chrome a
   await expect(page.getByRole('navigation', { name: 'Trip sections' })).toBeVisible()
 })
 
+test('the privacy promise is stated on all five carrier surfaces after the footer removal (v2.13-9, review R7)', async ({
+  page,
+}) => {
+  // The v2-13-7 footer removal made five surfaces the sole carriers of
+  // the location-privacy promise ("opt-in, off by default, only while
+  // the app is open") — the merge review's R7 noted nothing locked them.
+  // This spec is that lock: each surface keeps its own phrasing of the
+  // promise, so the assertions are per-surface verbatim.
+  await page.route('**/*', mockSupabase)
+
+  // 1. Landing hero + 2. landing map section (public, no auth).
+  await page.goto('/')
+  await expect(page.getByText('right now — opt-in, and only while the app is open.')).toBeVisible()
+  await expect(
+    page.getByText('Live location, opt-in and off by default — shared only while the app is open,'),
+  ).toBeVisible()
+
+  // 3. Sign-in screen (assert the note, then sign in on the same visit —
+  // the helper's pattern inlined to avoid a second page load).
+  await page.goto('/auth/signin')
+  await expect(page.locator('header nav')).toBeVisible()
+  await expect(
+    page.getByText('Location sharing is opt-in, off by default, and only works while the app is open.'),
+  ).toBeVisible()
+  await page.getByLabel('Email').fill('mock@pasyal.test')
+  await page.getByLabel('Password').fill('mock-password-1')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page).toHaveURL(/\/trips$/)
+
+  // 4. Join screen (the mocked valid invite preview renders the note).
+  await page.goto('/join/someinvitecode123')
+  await expect(page.getByText("You're invited to")).toBeVisible()
+  await expect(
+    page.getByText('Location sharing is opt-in, off by default, and only works while the app is open.'),
+  ).toBeVisible()
+
+  // 5. The location consent sheet (its "When:" line is the most exact
+  // statement of the promise). Declining keeps sharing off — nothing is
+  // granted here. The session is already active, so mirror the itinerary
+  // mocks + tile interception directly instead of the sign-in helper
+  // (a second sign-in visit would bounce off the live session).
+  await page.unroute('**/*')
+  await page.route('**/*', async (route) => {
+    const url = route.request().url()
+    if (url.endsWith('.png') && !url.includes('supabase')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      })
+      return
+    }
+    await mockTripDetailWithItinerary(route)
+  })
+  await page.goto(`/trips/${TRIP_ID}/map`)
+  const toggle = page.getByTestId('sharing-toggle')
+  await expect(toggle).toHaveAttribute('data-state', 'unchecked')
+  await toggle.click()
+  const consent = page.getByTestId('location-consent')
+  await expect(consent).toBeVisible()
+  await expect(consent.getByText(/only while you have this app open with sharing switched on/)).toBeVisible()
+  await expect(
+    consent.getByText(/It stops the moment you close the app or turn sharing off; it never runs in the background/),
+  ).toBeVisible()
+  await consent.getByRole('button', { name: 'Not now' }).click()
+  await expect(consent).not.toBeVisible()
+})
+
+test('the chrome keeps the v2-13-2 shadow contract and the trip header grid (v2.13-9, review follow-up)', async ({
+  page,
+}) => {
+  // Two v2-13-2 contracts with no standing lock: (a) the app header is
+  // shadow-free glass — only the specular inset edge remains, the drop
+  // shadow is overridden off — while the docked tab bar KEEPS its float
+  // shadow; (b) the trip header is a 2-column grid, so the Active badge
+  // sits beside the name in its own column (never wraps below it), the
+  // members meta line stays intact and the owner actions sit in one row.
+  await signInWithTrip(page, `/trips/${TRIP_ID}`)
+
+  // (b) Trip header grid: name, meta line, badge beside the name.
+  const heading = page.getByRole('heading', { name: 'Mock Trip' })
+  await expect(heading).toBeVisible()
+  await expect(page.getByText('Mar 1 – 8, 2026 · 5 members · PHP')).toBeVisible()
+  const badge = page.getByText('Active', { exact: true })
+  await expect(badge).toBeVisible()
+  const nameBox = await heading.boundingBox()
+  const badgeBox = await badge.boundingBox()
+  expect(nameBox).toBeTruthy()
+  expect(badgeBox).toBeTruthy()
+  // The badge's top aligns with the name's top region (same grid row, its
+  // own auto column — if it ever wrapped below the title its y would be
+  // a full line-height lower).
+  expect(badgeBox!.y).toBeGreaterThanOrEqual(nameBox!.y - 4)
+  expect(badgeBox!.y).toBeLessThanOrEqual(nameBox!.y + 12)
+  expect(badgeBox!.x).toBeGreaterThan(nameBox!.x + nameBox!.width / 2)
+
+  // Owner actions in one row on the Members tab (the mock user is the
+  // owner) — v2-13-2's single flex row.
+  await expect(page.getByRole('button', { name: 'Edit trip' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Archive', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeVisible()
+
+  // (a) Shadow contract: one inset shadow on the header — after stripping
+  // the parenthesized colors, no comma means no second (drop) shadow —
+  // while the tab bar's glass keeps BOTH the inset specular edge AND the
+  // float drop shadow (a comma separates the two shadows).
+  const shadows = await page.evaluate(() => {
+    const header = document.querySelector('header')
+    const bar = document.querySelector('nav[aria-label="Trip sections"]')
+    return {
+      header: header ? getComputedStyle(header).boxShadow : '',
+      bar: bar ? getComputedStyle(bar).boxShadow : '',
+    }
+  })
+  const shadowList = (s: string) => s.replace(/\([^)]*\)/g, '()')
+  expect(shadows.header).toContain('inset')
+  expect(shadowList(shadows.header)).not.toContain(',')
+  expect(shadows.bar).toContain('inset')
+  expect(shadowList(shadows.bar)).toContain(',')
+})
+
 test('the add-item form renders place search, the day select and the pin map (UI-11, FR-ITN-03)', async ({
   page,
 }) => {
@@ -923,8 +1057,15 @@ const mockSharingMembers = [
 
 // Timestamps are relative to the real clock so the freshness thresholds
 // (2 min stale / 30 min hidden, FR-LOC-08) behave deterministically.
+// v2.13-9 fix (merge-review follow-up): timestamps are computed PER REQUEST,
+// not at module import. The old module-level const froze "now" when the
+// worker loaded the file; the member-pins spec then ran minutes later and
+// Carla's "20 s ago" position silently crossed the 2-minute stale
+// threshold (app/lib/location.ts) — a latent time bomb that fired once
+// enough specs preceded it. Fresh per-request ages keep the fixture
+// deterministic no matter when the suite reaches the spec.
 const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString()
-const mockLocations = [
+const makeMockLocations = () => [
   { trip_id: TRIP_ID, member_id: M.carla, lat: 9.7425, lng: 118.7588, accuracy_m: 12, heading: null, updated_at: iso(20_000) },
   { trip_id: TRIP_ID, member_id: M.dan, lat: 11.1936, lng: 119.3903, accuracy_m: 180, heading: null, updated_at: iso(10 * 60_000) },
   { trip_id: TRIP_ID, member_id: M.ella, lat: 11.3203, lng: 119.3947, accuracy_m: 25, heading: null, updated_at: iso(40 * 60_000) },
@@ -941,7 +1082,7 @@ async function mockTripDetailWithLocations(route: Route) {
     return
   }
   if (url.includes('/rest/v1/member_locations')) {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockLocations) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeMockLocations()) })
     return
   }
   await mockTripDetailWithItinerary(route)

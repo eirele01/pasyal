@@ -8,10 +8,12 @@
  *     bars render frosted red, backdrop-filter works; if they stay
  *     white, we have a real bug.
  *
- *  B. "Footer text is clipped behind the tab bar" → measure the rects:
- *     the lowest footer line must end above the nav's top edge, both on
- *     a short page (filtered itinerary, no scroll) and scrolled to the
- *     very bottom of a long page.
+ *  B. "Footer text is clipped behind the tab bar" → measured rects
+ *     then; the footer was later REMOVED outright (v2.13-7, owner-
+ *     requested: it could never clear the docked bar at ≥ sm), so this
+ *     script now verifies the v2-13-7 contract instead: NO footer
+ *     element exists on any screen — nothing can hide behind the bar.
+ *     Check A (the frosted-glass test) is unchanged.
  *
  * Run: node scripts/verify-v213-2.mjs   (build first; port 4175)
  */
@@ -149,36 +151,36 @@ async function run() {
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await page.getByRole('button', { name: 'Open account menu' }).waitFor({ state: 'visible' })
 
-    // ── B. Footer clearance, short page (filtered, no scroll) ──────
+    // ── B. Footer absence, short page (filtered, no scroll) ──────
+    // v2.13-9 update: the footer was removed in v2.13-7 — the clearance
+    // checks became "footer p:last-of-type is null" crashes. The check
+    // is now the v2-13-7 contract itself: no footer element at all.
     await page.goto(`${BASE}/trips/${TRIP_ID}/itinerary`, { waitUntil: 'networkidle' })
     await page.getByRole('button', { name: 'Day 3' }).click()
     await page.waitForTimeout(300)
-    const shortPage = await page.evaluate(() => {
-      const nav = document.querySelector('nav[aria-label="Trip sections"]').getBoundingClientRect()
-      const lastP = document.querySelector('footer p:last-of-type').getBoundingClientRect()
-      const scrollable = document.documentElement.scrollHeight > window.innerHeight
-      return { navTop: nav.top, lastLineBottom: lastP.bottom, scrollable }
-    })
+    const shortPage = await page.evaluate(() => ({
+      footers: document.querySelectorAll('footer').length,
+      scrollable: document.documentElement.scrollHeight > window.innerHeight,
+    }))
     check(
-      'short page: footer last line clears the docked bar',
-      shortPage.lastLineBottom <= shortPage.navTop,
-      `footer bottom ${shortPage.lastLineBottom} vs bar top ${shortPage.navTop} (scrollable: ${shortPage.scrollable})`,
+      'short page: no footer element exists (v2.13-7 removal)',
+      shortPage.footers === 0,
+      `footers ${shortPage.footers} (scrollable: ${shortPage.scrollable})`,
     )
 
-    // ── B. Footer clearance, long page scrolled to the very bottom ──
+    // ── B. Footer absence, long page scrolled to the very bottom ──
     await page.getByRole('button', { name: 'All' }).click()
     await page.waitForTimeout(200)
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
     await page.waitForTimeout(300)
-    const longPage = await page.evaluate(() => {
-      const nav = document.querySelector('nav[aria-label="Trip sections"]').getBoundingClientRect()
-      const lastP = document.querySelector('footer p:last-of-type').getBoundingClientRect()
-      return { navTop: nav.top, lastLineBottom: lastP.bottom }
-    })
+    const longPage = await page.evaluate(() => ({
+      footers: document.querySelectorAll('footer').length,
+      atBottom: window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 1,
+    }))
     check(
-      'long page scrolled to bottom: footer last line clears the docked bar',
-      longPage.lastLineBottom <= longPage.navTop,
-      `footer bottom ${longPage.lastLineBottom} vs bar top ${longPage.navTop}`,
+      'long page scrolled to bottom: still no footer element',
+      longPage.footers === 0,
+      `footers ${longPage.footers} (at bottom: ${longPage.atBottom})`,
     )
 
     // ── A. Glass test: red stripes behind both chrome bars ──────────
