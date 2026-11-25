@@ -41,12 +41,16 @@ same gates re-run at every delivery since v2-13:
 - [ ] `npm run test` → vitest **212 passed | 52 skipped**
 - [ ] `npm run build` → "Build complete", vite + nitro green
 - [ ] `npm run check:budget` → initial-route JS **≤ 172.6 KB gz** (budget 300 KB)
-- [ ] `npx playwright test` → **55 passed + 10 skipped** (the 10 skips are
+- [ ] `npx playwright test` → **56 passed + 10 skipped** (the 10 skips are
       env-gated — Phase 2 exists because a green run WITHOUT them is not full
       coverage; v2-13-9 added the five-surface privacy spec, the chrome
       shadow/header-grid spec and the Edit/Delete pill-parity lock, and
       fixed a latent time-bomb in the member-positions fixture — see the
-      review doc's v2-13-9 addendum)
+      review doc's v2-13-9 addendum. v2-13-10 added the expenses
+      navigation console-clean lock: client-side walks of
+      list → detail → edit → detail → list → new → list must emit zero
+      `[Vue warn]` on the dev server — the regression net for the
+      `[expenseId].vue` non-element-root fix)
 
 ## Phase 2 — Real-Supabase gates (15 min, needs `.env`)
 

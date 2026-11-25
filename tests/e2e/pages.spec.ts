@@ -398,6 +398,51 @@ test('the expense detail shows original and converted amounts and splits (UI-08,
   expect(editBox!.height).toBeGreaterThanOrEqual(32)
 })
 
+test('expense navigations run the page transitions without any Vue warning (v2-13-10)', async ({
+  page,
+}) => {
+  // The owner's v2-13-9 manual pass saw, on every detail↔edit swap, dev
+  // warnings "Component inside <Transition> renders non-element root node
+  // that cannot be animated" — the [expenseId].vue wrapper rendered a
+  // bare <NuxtPage /> root that Vue cannot animate. The wrapper now wraps
+  // its NuxtPage in a single (inert) <div>; this spec walks the full
+  // expenses flow through client-side navigation and locks the console
+  // clean: no [Vue warn] may be emitted on the dev server.
+  const vueWarnings: string[] = []
+  page.on('console', (msg) => {
+    if (msg.text().includes('[Vue warn]')) vueWarnings.push(msg.text())
+  })
+  page.on('pageerror', (err) => vueWarnings.push(String(err)))
+
+  await signInWithTrip(page, `/trips/${TRIP_ID}/expenses`)
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+
+  // list → detail (the [expenseId].vue wrapper enters via transition).
+  await page.getByRole('link', { name: /Tokyo hotel/ }).click()
+  await expect(page.getByRole('heading', { name: 'Tokyo hotel' })).toBeVisible()
+
+  // detail → edit (the swap inside the wrapper's NuxtPage — where the
+  // warnings used to fire).
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Edit expense' })).toBeVisible()
+
+  // edit → detail → list.
+  await page.getByRole('link', { name: '← Back to expense' }).click()
+  await expect(page.getByRole('heading', { name: 'Tokyo hotel' })).toBeVisible()
+  await page.getByRole('link', { name: '← Back to expenses' }).click()
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+
+  // list → new → list (new.vue leaves under the transition too).
+  await page.getByRole('link', { name: 'Add expense' }).click()
+  await expect(page.getByRole('heading', { name: 'Add expense' })).toBeVisible()
+  await page.getByRole('link', { name: '← Back to expenses' }).click()
+  await expect(page.getByRole('link', { name: /Tokyo hotel/ })).toBeVisible()
+
+  // Let the last out-in transition settle before judging the console.
+  await page.waitForTimeout(600)
+  expect(vueWarnings).toEqual([])
+})
+
 test('the add-expense form renders with payers, participants and split types (UI-07)', async ({
   page,
 }) => {
